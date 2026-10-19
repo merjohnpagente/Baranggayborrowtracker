@@ -25,7 +25,14 @@ class AppAssets {
   static const String basketballEquipment =
       'assets/images/basketball_equipment.jpg';
 
-  // ---- Icons (vector) -----------------------------------------------------
+  // ---- Launcher / branding ------------------------------------------------
+  /// Source of the Android launcher icon, rendered by CI.
+  ///
+  /// Not bundled into the Dart asset manifest on purpose: at 1024x1024 it
+  /// would be dead weight in the APK. It is consumed by
+  /// `flutter_launcher_icons` during the build.
+  static const String launcherIconSource = 'assets/icon/app_icon_1024.png';
+
   static const String appIcon = 'assets/icons/app_icon.svg';
   static const String brandMark = 'assets/icons/brand_mark.svg';
   static const String logo = 'assets/icons/logo.svg';

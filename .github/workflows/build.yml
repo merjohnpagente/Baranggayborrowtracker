@@ -54,6 +54,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Generate launcher icons
+        # android/ is git-ignored and produced by `flutter create` above, so the
+        # launcher icons cannot be committed — they are rendered from
+        # assets/icon/app_icon_1024.png on every build instead. Without this the
+        # APK ships with Flutter's default launcher icon.
+        run: dart run flutter_launcher_icons
+
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
