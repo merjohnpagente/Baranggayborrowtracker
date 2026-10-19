@@ -13,7 +13,7 @@ Built with Flutter, backed by Supabase (Postgres + Auth + Storage).
 You do **not** need Flutter installed. GitHub Actions builds the APK for you.
 
 1. Push this repository to GitHub (branch `main`).
-2. Open the repo → **Actions** → **Build** → **Run workflow**.
+2. Open the repo → **Actions** → **Build Android APK** → **Run workflow**.
 3. Wait for the run to finish (green).
 4. At the bottom of the run page, download the artifact
    **`barangay-borrow-tracker-apk`**.
@@ -28,12 +28,13 @@ build — the APK is never produced from broken code.
 
 The app builds and runs without any configuration, showing a *Setup required*
 screen that explains what to do. To point it at a real database, add these as
-repository **Settings → Secrets**:
+repository **Settings → Secrets and variables → Actions → Variables**:
 
-| Secret | Meaning |
+| Variable | Meaning |
 | --- | --- |
 | `SUPABASE_URL` | Project URL, e.g. `https://abc123.supabase.co` |
 | `SUPABASE_ANON_KEY` | The **anon / publishable** key |
+| `BARANGAY_NAME` | Optional display name, e.g. `Barangay San Isidro` |
 
 They are read by the workflow as repo *variables* (`vars.*`) and passed to
 `flutter build --dart-define=…`. Do **not** commit them.
@@ -105,13 +106,16 @@ lib/
     utils/                   formatters, validators, QR payload encoding
     widgets/                 shared cards, chips, empty states, photos
   data/
-    models/                  Asset, BorrowRequest, UserProfile, AssetCategory
+    models/                  Asset, BorrowRequest, UserProfile, NotificationItem,
+                             DashboardSummary, AssetCategory
     repositories/            Supabase reads and writes
     supabase_service.dart    client bootstrap + error translation
   features/
     auth/                    login, register, forgot password
     dashboard/  assets/      inventory, detail, add/edit
-    requests/  approvals/    request form, my requests, approve/reject
+    requests/  approvals/    request form, my requests, history
+    notifications/           in-app inbox fed by database triggers
+    reports/                 live operational summary for officials
     qr/                      scanner and code display
     profile/                 profile and user management
     setup/                   "not configured" + splash
@@ -149,11 +153,11 @@ Icons in `assets/icons/` are original SVGs authored for this project.
 
 ## Known gaps
 
-- **The Dart data layer still uses older table names.** `borrow_repository.dart`
-  and `asset_repository.dart` read `borrow_requests` and the `asset_categories`
-  table, while `schema.sql` defines `bookings` with categories as an enum on
-  `assets`. This must be reconciled before the app can talk to the database —
-  the SQL is correct and verified; the repository column mapping is not.
-- No `test/` coverage of the Supabase functions themselves; the SQL was verified
-  separately against a real Postgres instance.
-- Push notifications are not wired up. In-app notifications are.
+- Push notifications are not wired up. The in-app inbox records every event
+  the database writes (submission, approval, rejection, return, overdue), but
+  it does not ring the phone when the app is closed.
+- Reports show the live operational summary from `dashboard_summary()`. There
+  is no PDF/CSV export yet.
+- No automated tests exercise the Supabase functions themselves; the SQL was
+  verified separately against a real PostgreSQL 17 instance. The Dart tests
+  cover the model parsing and the business rules mirrored in the client.

@@ -16,7 +16,7 @@ class InventoryProvider extends ChangeNotifier {
   String? _error;
 
   String _search = '';
-  String? _categoryId;
+  AssetCategory? _category;
   AssetStatus? _status;
   bool _onlyAvailable = false;
 
@@ -30,7 +30,7 @@ class InventoryProvider extends ChangeNotifier {
 
   String get search => _search;
 
-  String? get categoryId => _categoryId;
+  AssetCategory? get category => _category;
 
   AssetStatus? get status => _status;
 
@@ -46,19 +46,17 @@ class InventoryProvider extends ChangeNotifier {
 
   bool get hasFilters =>
       _search.isNotEmpty ||
-      _categoryId != null ||
+      _category != null ||
       _status != null ||
       _onlyAvailable;
 
+  /// Categories are an enum in Postgres, not a table, so there is nothing to
+  /// fetch. Populate the list from the enum once for the filter chips.
   Future<void> loadCategories({bool force = false}) async {
     if (_categoriesLoaded && !force) return;
-    try {
-      _categories = await _assets.fetchCategories();
-      _categoriesLoaded = true;
-      notifyListeners();
-    } catch (_) {
-      _categories = const [];
-    }
+    _categories = _assets.categories();
+    _categoriesLoaded = true;
+    notifyListeners();
   }
 
   Future<void> load() async {
@@ -68,7 +66,7 @@ class InventoryProvider extends ChangeNotifier {
     try {
       _items = await _assets.fetchAssets(
         search: _search,
-        categoryId: _categoryId,
+        category: _category,
         status: _status,
         onlyAvailable: _onlyAvailable,
       );
@@ -91,8 +89,9 @@ class InventoryProvider extends ChangeNotifier {
     _search = value;
   }
 
-  void setCategory(String? id) {
-    _categoryId = _categoryId == id ? null : id;
+  /// Tapping the selected chip again clears the filter.
+  void setCategory(AssetCategory? value) {
+    _category = _category == value ? null : value;
     load();
   }
 
@@ -108,7 +107,7 @@ class InventoryProvider extends ChangeNotifier {
 
   void clearFilters() {
     _search = '';
-    _categoryId = null;
+    _category = null;
     _status = null;
     _onlyAvailable = false;
     load();
@@ -141,7 +140,7 @@ class InventoryProvider extends ChangeNotifier {
 
   Future<Asset?> lookupByCode(String code) async {
     try {
-      return await _assets.findByCode(code);
+      return await _assets.findByCodeOrQr(code);
     } catch (_) {
       return null;
     }

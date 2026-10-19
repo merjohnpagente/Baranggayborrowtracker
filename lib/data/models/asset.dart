@@ -1,3 +1,5 @@
+import 'asset_category.dart';
+
 /// Whether an asset can be requested right now.
 ///
 /// Mirrors the `asset_status` enum in `schema.sql`. `status` is kept in sync

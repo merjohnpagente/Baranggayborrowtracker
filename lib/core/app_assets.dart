@@ -50,37 +50,25 @@ class AppAssets {
 
   /// Photograph for a demo record, keyed on its asset code.
   ///
-  /// Demo rows store an `asset_code` rather than a path, so this is how a demo
-  /// asset gets a picture without every record embedding a filename. Unknown
-  /// codes return null and the UI falls back to the SVG crate mark, which is
-  /// preferable to showing an unrelated photograph.
+  /// The mapping is **exact** and deliberately short: a picture of a folding
+  /// table next to a box of cables would be worse than a category icon. Codes
+  /// that are not listed return null, and the UI falls back to the category
+  /// glyph. The demo seed uses a `BRGY-` prefix, which is stripped first.
   static String? photoForAssetCode(String assetCode) {
-    final code = assetCode.trim().toUpperCase();
-    if (code.startsWith('VEH')) return serviceVehicle;
-    if (code.startsWith('FAC')) {
-      if (code == 'FAC-001') return coveredCourt;
-      if (code == 'FAC-002') return multipurposeHall;
-      return barangayHall;
-    }
-    if (code.startsWith('EQP')) {
-      switch (code) {
-        case 'EQP-001':
-          return soundSystem;
-        case 'EQP-002':
-          return foldingTable;
-        case 'EQP-003':
-          return eventTent;
-        case 'EQP-004':
-          return projector;
-        case 'EQP-005':
-          return generator;
-        case 'EQP-006':
-          return plasticChair;
-        case 'EQP-007':
-          return basketballEquipment;
-      }
-    }
-    return null;
+    var code = assetCode.trim().toUpperCase();
+    if (code.startsWith('BRGY-')) code = code.substring(5);
+    return switch (code) {
+      'VEH-001' => serviceVehicle,
+      'FAC-001' => coveredCourt,
+      'FAC-002' => multipurposeHall,
+      'EQP-001' => soundSystem,
+      'FUR-001' => plasticChair,
+      'FUR-002' => foldingTable,
+      'SHL-001' => eventTent,
+      'ELE-001' => projector,
+      'PWR-001' => generator,
+      _ => null,
+    };
   }
 
   /// Icon for an asset category, given the category's wire value

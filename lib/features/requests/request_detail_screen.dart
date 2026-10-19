@@ -89,11 +89,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     if (remarks == null || !mounted) return;
 
     setState(() => _working = true);
-    final auth = context.read<AuthProvider>();
     try {
       final updated = await context.read<RequestsProvider>().review(
             id: widget.requestId,
-            reviewerId: auth.profile!.id,
             approve: approve,
             remarks: remarks.isEmpty ? null : remarks,
           );
@@ -121,11 +119,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _working = true);
-    final auth = context.read<AuthProvider>();
     try {
       final updated = await context.read<RequestsProvider>().release(
             id: widget.requestId,
-            officerId: auth.profile!.id,
           );
       if (!mounted) return;
       setState(() {
@@ -258,7 +254,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final isOwner = auth.profile?.id == request.userId;
     final actions = <Widget>[];
 
-    if (isOwner && request.status == RequestStatus.pending) {
+    if (isOwner && request.status.isCancellableByOwner) {
       actions.add(
         OutlinedButton.icon(
           onPressed: _working ? null : _cancel,
@@ -267,7 +263,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ),
       );
     }
-    if (auth.isOfficial && request.status == RequestStatus.pending) {
+    // Approving is admin/approver work; releasing and receiving are
+    // admin/staff work. The database enforces exactly that split, so the
+    // buttons follow the same two flags instead of "is an official".
+    if (auth.role.canApprove && request.status == RequestStatus.pending) {
       actions.add(
         OutlinedButton.icon(
           onPressed: _working ? null : () => _review(false),
@@ -283,7 +282,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ),
       );
     }
-    if (auth.isOfficial && request.status == RequestStatus.approved) {
+    if (auth.role.canHandleAssets && request.status == RequestStatus.approved) {
       actions.add(
         FilledButton.icon(
           onPressed: _working ? null : _release,
@@ -292,7 +291,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ),
       );
     }
-    if (auth.isOfficial && request.status == RequestStatus.released) {
+    if (auth.role.canHandleAssets && request.status.isReturnable) {
       actions.add(
         FilledButton.icon(
           onPressed: _working ? null : _markReturned,
@@ -306,7 +305,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       appBar: AppBar(
         title: Text(request.referenceNo),
         actions: [
-          if (request.status == RequestStatus.released)
+          if (request.status.isReturnable)
             IconButton(
               tooltip: 'Show QR pass',
               onPressed: () => _showQr(request),
@@ -343,7 +342,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             const SizedBox(height: 6),
             Row(
               children: [
-                request.requester!.avatar,
+                UserAvatar(profile: request.requester!, radius: 18),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -417,8 +416,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               ),
             ),
           ],
-          if (request.returnRemarks != null &&
-              request.returnRemarks!.isNotEmpty) ...[
+          if (request.returnCondition != null ||
+              (request.returnRemarks != null &&
+                  request.returnRemarks!.isNotEmpty)) ...[
             const SectionHeader(title: 'RETURN NOTE'),
             Card(
               child: Padding(
@@ -426,10 +426,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(request.returnRemarks!,
-                        style: theme.textTheme.bodyMedium),
+                    if (request.returnRemarks != null &&
+                        request.returnRemarks!.isNotEmpty)
+                      Text(request.returnRemarks!,
+                          style: theme.textTheme.bodyMedium),
                     if (request.returnCondition != null) ...[
-                      const SizedBox(height: 8),
+                      if (request.returnRemarks != null &&
+                          request.returnRemarks!.isNotEmpty)
+                        const SizedBox(height: 8),
                       StatusChip(
                         label: 'Condition: ${request.returnCondition!.label}',
                         color: theme.colorScheme.outline,

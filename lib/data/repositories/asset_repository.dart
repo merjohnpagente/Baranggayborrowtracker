@@ -31,7 +31,7 @@ class AssetRepository {
     // Archived rows are filtered in the query rather than in Dart so the list
     // never paints an item and then removes it a frame later.
     if (!includeArchived) {
-      query = query.isFilter('archived_at', 'is', null);
+      query = query.isFilter('archived_at', null);
     }
     if (search != null && search.trim().isNotEmpty) {
       final term = search.trim();
@@ -70,7 +70,7 @@ class AssetRepository {
         .from('assets')
         .select()
         .or('qr_code_value.eq.$value,asset_code.eq.${value.toUpperCase()}')
-        .isFilter('archived_at', 'is', null)
+        .isFilter('archived_at', null)
         .limit(1);
 
     final rows = _rows(data);

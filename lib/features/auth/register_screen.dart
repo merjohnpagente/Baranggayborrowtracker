@@ -19,7 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
+  final _purokController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _obscure = true;
@@ -29,7 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
+    _purokController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -45,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: _emailController.text,
       password: _passwordController.text,
       phone: _phoneController.text,
-      address: _addressController.text,
+      purok: _purokController.text,
     );
     if (!mounted) return;
 
@@ -143,11 +143,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
-                      controller: _addressController,
+                      controller: _purokController,
                       textCapitalization: TextCapitalization.words,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
-                        labelText: 'Purok / Address (optional)',
+                        labelText: 'Purok (optional)',
                         prefixIcon: Icon(Icons.home_outlined),
                       ),
                     ),

@@ -30,7 +30,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       DateTime.now().add(const Duration(days: 1));
   bool _submitting = false;
   bool _checkingAvailability = false;
-  bool _available = true;
+
+  /// `true` free, `false` taken, `null` not known yet / could not check.
+  bool? _available;
 
   @override
   void initState() {
@@ -48,10 +50,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
   Future<void> _load() async {
     final id = widget.assetId;
-    if (id == null) {
-      setState(() {});
-      return;
-    }
+    if (id == null) return;
     final asset = await context.read<AssetRepository>().fetchAsset(id);
     if (!mounted) return;
     setState(() => _asset = asset);
@@ -62,8 +61,12 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     setState(() => _checkingAvailability = true);
     final available = await context.read<RequestsProvider>().isAssetAvailable(
           assetId: widget.assetId!,
-          from: _borrowDate,
-          to: _returnDate,
+          // The reservation is the whole of the first day through the whole of
+          // the last day, matching what `createRequest` stores. Checking a
+          // narrower window here would say "free" for a slot that approval
+          // later rejects.
+          from: _dateOnly(_borrowDate),
+          to: _endOfDay(_returnDate),
         );
     if (!mounted) return;
     setState(() {
@@ -115,13 +118,21 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       AppToast.error(context, 'Choose an item from the catalogue first.');
       return;
     }
+    if (_available == false) {
+      setState(() => _submitting = false);
+      AppToast.error(
+        context,
+        'Those dates are already taken. Pick another day or another item.',
+      );
+      return;
+    }
 
     try {
       final request = await requests.createRequest(
         assetId: id,
         purpose: _purposeController.text,
-        borrowDate: _borrowDate,
-        returnDate: _returnDate,
+        borrowDate: _dateOnly(_borrowDate),
+        returnDate: _endOfDay(_returnDate),
       );
       if (!mounted) return;
       AppToast.success(context, 'Request ${request.referenceNo} submitted.');
@@ -232,45 +243,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
             ),
             if (widget.assetId != null) ...[
               const SizedBox(height: 10),
-              if (_checkingAvailability)
-                const Row(
-                  children: [
-                    SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 8),
-                    Text('Checking schedule…'),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    Icon(
-                      _available
-                          ? Icons.check_circle_rounded
-                          : Icons.event_busy_rounded,
-                      size: 16,
-                      color: _available
-                          ? const Color(0xFF2E7D32)
-                          : theme.colorScheme.error,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _available
-                            ? 'This item is free for your dates'
-                            : 'Another request already covers these dates',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: _available
-                              ? const Color(0xFF2E7D32)
-                              : theme.colorScheme.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              _availabilityNotice(theme),
             ],
             const SectionHeader(title: 'PURPOSE'),
             TextFormField(
@@ -343,4 +316,76 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
   DateTime _dateOnly(DateTime value) =>
       DateTime(value.year, value.month, value.day);
+
+  /// Three states, not two: checking, known (free / taken), and unknown.
+  ///
+  /// "Unknown" happens when the availability call fails — a dropped signal
+  /// must not be shown as "taken" and must not block the request either.
+  Widget _availabilityNotice(ThemeData theme) {
+    if (_checkingAvailability) {
+      return const Row(
+        children: [
+          SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Checking schedule…'),
+        ],
+      );
+    }
+
+    if (_available == null) {
+      return Row(
+        children: [
+          Icon(Icons.cloud_off_rounded,
+              size: 16, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Could not check the schedule right now. You may still submit — '
+              'the office re-checks before approving.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final free = _available!;
+    final color =
+        free ? const Color(0xFF169B62) : theme.colorScheme.error;
+    return Row(
+      children: [
+        Icon(
+          free ? Icons.check_circle_rounded : Icons.event_busy_rounded,
+          size: 16,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            free
+                ? 'This item is free for your dates'
+                : 'A confirmed booking covers these dates — pick other days.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// End of the chosen return day.
+  ///
+  /// A booking is stored as [start_time, end_time), so a return "on the 21st"
+  /// has to end at 23:59:59 on the 21st. Storing midnight at the *start* of
+  /// the 21st would make the item due a day early and let another request
+  /// overlap the evening the borrower still has it.
+  DateTime _endOfDay(DateTime value) =>
+      DateTime(value.year, value.month, value.day, 23, 59, 59);
 }

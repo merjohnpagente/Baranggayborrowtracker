@@ -8,6 +8,7 @@ import '../../data/models/asset.dart';
 import '../../data/models/borrow_request.dart';
 import '../../state/auth_provider.dart';
 import '../../state/inventory_provider.dart';
+import '../../state/notifications_provider.dart';
 import '../../state/requests_provider.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/common.dart';
@@ -35,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await Future.wait([
       inventory.load(),
       requests.load(),
+      context.read<NotificationsProvider>().load(),
       if (auth.isOfficial) requests.loadOfficialQueues(),
     ]);
   }
@@ -77,6 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final auth = context.watch<AuthProvider>();
     final inventory = context.watch<InventoryProvider>();
     final requests = context.watch<RequestsProvider>();
+    final notifications = context.watch<NotificationsProvider>();
     final upcoming = requests.upcomingMine.take(3).toList();
 
     return Scaffold(
@@ -87,6 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context
                 .read<RequestsProvider>()
                 .refreshAll(isOfficial: auth.isOfficial),
+            context.read<NotificationsProvider>().load(),
           ]);
         },
         child: CustomScrollView(
@@ -113,9 +117,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               actions: [
                 IconButton(
+                  tooltip: 'Notifications',
+                  onPressed: () => context.push('/notifications'),
+                  icon: Badge(
+                    isLabelVisible: notifications.unreadCount > 0,
+                    label: Text('${notifications.unreadCount}'),
+                    child: const Icon(Icons.notifications_none_rounded),
+                  ),
+                ),
+                IconButton(
                   tooltip: 'My profile',
                   onPressed: () => context.go('/profile'),
-                  icon: auth.profile?.avatar ?? const Icon(Icons.person_rounded),
+                  icon: auth.profile == null
+                      ? const Icon(Icons.person_rounded)
+                      : UserAvatar(profile: auth.profile!, radius: 16),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -148,6 +163,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    _ActionTile(
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Reports & statistics',
+                      onTap: () => context.push('/reports'),
                     ),
                   ],
                   SectionHeader(

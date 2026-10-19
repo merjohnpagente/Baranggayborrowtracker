@@ -1,30 +1,69 @@
 import 'package:flutter/material.dart';
 
-/// Material 3 theme for the whole app. One seed colour drives light and dark.
+/// Material 3 theme for the whole app.
+///
+/// The palette is fixed by the barangay's identity, not derived from an
+/// arbitrary seed: navy and the lighter blue are the two colours used on the
+/// signage and the paper forms, so the app and the paperwork agree.
 class AppTheme {
   const AppTheme._();
 
-  static const Color seed = Color(0xFF00695C);
+  /// Primary — headings, app bar, selected navigation.
+  static const Color navy = Color(0xFF103B63);
+
+  /// Secondary — links, accents, "released" states.
+  static const Color blue = Color(0xFF1769AA);
+
+  /// Page background. A very light blue-grey rather than pure white, so white
+  /// cards separate from it without needing a heavy border.
+  static const Color background = Color(0xFFF5F8FC);
+
+  static const Color success = Color(0xFF169B62);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color danger = Color(0xFFDC3545);
+
+  static const Color _ink = Color(0xFF14202B);
 
   static ThemeData light() => _base(Brightness.light);
 
   static ThemeData dark() => _base(Brightness.dark);
 
   static ThemeData _base(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
+    final seeded = ColorScheme.fromSeed(
+      seedColor: navy,
       brightness: brightness,
     );
+
+    final scheme = brightness == Brightness.light
+        ? seeded.copyWith(
+            primary: navy,
+            onPrimary: Colors.white,
+            primaryContainer: const Color(0xFFD7E6F5),
+            onPrimaryContainer: navy,
+            secondary: blue,
+            onSecondary: Colors.white,
+            secondaryContainer: const Color(0xFFDCEBFA),
+            onSecondaryContainer: const Color(0xFF0B2C4A),
+            error: danger,
+            onError: Colors.white,
+            surface: Colors.white,
+            onSurface: _ink,
+            outlineVariant: const Color(0xFFD6E0EA),
+          )
+        : seeded.copyWith(
+            primary: const Color(0xFF9CC7F0),
+            onPrimary: const Color(0xFF04263F),
+            secondary: const Color(0xFF8FC4F5),
+            error: const Color(0xFFFF8A8A),
+          );
+
     final base = ThemeData(colorScheme: scheme, useMaterial3: true);
 
     return base.copyWith(
-      scaffoldBackgroundColor: brightness == Brightness.light
-          ? const Color(0xFFF6F8F7)
-          : scheme.surface,
+      scaffoldBackgroundColor:
+          brightness == Brightness.light ? background : scheme.surface,
       appBarTheme: AppBarTheme(
-        backgroundColor: brightness == Brightness.light
-            ? scheme.surface
-            : scheme.surface,
+        backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
@@ -43,7 +82,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.6),
+            color: scheme.outlineVariant.withValues(alpha: 0.7),
           ),
         ),
       ),
@@ -95,9 +134,7 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,
-        backgroundColor: brightness == Brightness.light
-            ? Colors.white
-            : scheme.surfaceContainer,
+        backgroundColor: scheme.surface,
         indicatorColor: scheme.primaryContainer,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith(
@@ -134,9 +171,9 @@ class StatusPalette {
   static Color forAsset(BuildContext context, String status) {
     final scheme = Theme.of(context).colorScheme;
     return switch (status) {
-      'available' => const Color(0xFF2E7D32),
-      'reserved' => const Color(0xFFF9A825),
-      'borrowed' => const Color(0xFF1565C0),
+      'available' => AppTheme.success,
+      'reserved' => AppTheme.warning,
+      'borrowed' => AppTheme.blue,
       'maintenance' => const Color(0xFFE65100),
       'retired' => scheme.outline,
       _ => scheme.outline,
@@ -146,11 +183,13 @@ class StatusPalette {
   static Color forRequest(BuildContext context, String status) {
     final scheme = Theme.of(context).colorScheme;
     return switch (status) {
-      'pending' => const Color(0xFFF9A825),
-      'approved' => const Color(0xFF00897B),
-      'released' => const Color(0xFF1565C0),
-      'returned' => const Color(0xFF2E7D32),
-      'declined' => scheme.error,
+      'pending' => AppTheme.warning,
+      'approved' => AppTheme.success,
+      'released' => AppTheme.blue,
+      'returned' => AppTheme.success,
+      'completed' => AppTheme.success,
+      'overdue' => AppTheme.danger,
+      'rejected' => AppTheme.danger,
       'cancelled' => scheme.outline,
       _ => scheme.outline,
     };
@@ -170,7 +209,9 @@ class StatusPalette {
         'approved' => Icons.thumb_up_rounded,
         'released' => Icons.outbound_rounded,
         'returned' => Icons.assignment_turned_in_rounded,
-        'declined' => Icons.cancel_rounded,
+        'completed' => Icons.task_alt_rounded,
+        'overdue' => Icons.warning_amber_rounded,
+        'rejected' => Icons.cancel_rounded,
         'cancelled' => Icons.remove_circle_outline_rounded,
         _ => Icons.help_rounded,
       };

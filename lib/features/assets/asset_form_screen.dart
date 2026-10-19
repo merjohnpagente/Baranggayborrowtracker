@@ -1,11 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/asset.dart';
+import '../../data/models/asset_category.dart';
 import '../../data/repositories/asset_repository.dart';
 import '../../state/inventory_provider.dart';
 import '../../core/widgets/common.dart';
@@ -26,19 +28,25 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
   final _codeController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
-  final _depositController = TextEditingController();
-  final _notesController = TextEditingController();
+  final _plateController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
+  final _maintenanceController = TextEditingController();
 
-  String? _categoryId;
+  AssetCategory _category = AssetCategory.other;
   AssetStatus _status = AssetStatus.available;
   AssetCondition _condition = AssetCondition.good;
-  bool _requiresApproval = true;
-  String? _imageUrl;
+
+  /// `assets.image_urls` is a text[]; the form edits the first one and keeps
+  /// the rest untouched, so a photo added elsewhere is not silently dropped.
+  List<String> _imageUrls = const [];
+
   bool _saving = false;
   bool _loading = true;
   bool _uploading = false;
 
   bool get _isEditing => widget.assetId != null;
+
+  String? get _imageUrl => _imageUrls.isEmpty ? null : _imageUrls.first;
 
   @override
   void initState() {
@@ -52,8 +60,9 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
     _codeController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
-    _depositController.dispose();
-    _notesController.dispose();
+    _plateController.dispose();
+    _quantityController.dispose();
+    _maintenanceController.dispose();
     super.dispose();
   }
 
@@ -71,15 +80,13 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
           _codeController.text = asset.code;
           _descriptionController.text = asset.description ?? '';
           _locationController.text = asset.location ?? '';
-          _depositController.text = asset.depositAmount == 0
-              ? ''
-              : asset.depositAmount.toStringAsFixed(2);
-          _notesController.text = asset.notes ?? '';
-          _categoryId = asset.categoryId;
+          _plateController.text = asset.plateNumber ?? '';
+          _quantityController.text = asset.quantity.toString();
+          _maintenanceController.text = asset.maintenanceNote ?? '';
+          _category = asset.category;
           _status = asset.status;
           _condition = asset.condition;
-          _requiresApproval = asset.requiresApproval;
-          _imageUrl = asset.imageUrl;
+          _imageUrls = asset.imageUrls;
         });
       }
     }
@@ -103,7 +110,7 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
           .uploadPhoto(Uint8List.fromList(bytes), picked.name);
       if (!mounted) return;
       setState(() {
-        _imageUrl = url;
+        _imageUrls = [url, ..._imageUrls.skip(1)];
         _uploading = false;
       });
     } catch (error) {
@@ -119,21 +126,20 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
 
     final inventory = context.read<InventoryProvider>();
     final repository = context.read<AssetRepository>();
-    final deposit = double.tryParse(_depositController.text.trim()) ?? 0;
 
     final asset = Asset(
       id: widget.assetId ?? '',
       code: _codeController.text.trim().toUpperCase(),
       name: _nameController.text.trim(),
-      categoryId: _categoryId,
-      description: _descriptionController.text.trim(),
-      imageUrl: _imageUrl,
-      status: _status,
+      category: _category,
+      description: _emptyToNull(_descriptionController.text),
+      imageUrls: _imageUrls,
+      location: _emptyToNull(_locationController.text),
+      quantity: int.tryParse(_quantityController.text.trim()) ?? 1,
       condition: _condition,
-      location: _locationController.text.trim(),
-      requiresApproval: _requiresApproval,
-      depositAmount: deposit,
-      notes: _notesController.text.trim(),
+      status: _status,
+      plateNumber: _emptyToNull(_plateController.text),
+      maintenanceNote: _emptyToNull(_maintenanceController.text),
     );
 
     try {
@@ -163,6 +169,11 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
     }
   }
 
+  static String? _emptyToNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -186,8 +197,9 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
                           radius: 48,
                           backgroundColor:
                               theme.colorScheme.surfaceContainerHighest,
-                          backgroundImage:
-                              _imageUrl == null ? null : NetworkImage(_imageUrl!),
+                          backgroundImage: _imageUrl == null
+                              ? null
+                              : NetworkImage(_imageUrl!),
                           child: _imageUrl == null
                               ? Icon(Icons.add_a_photo_outlined,
                                   size: 28, color: theme.colorScheme.primary)
@@ -240,23 +252,25 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
                         : null,
                   ),
                   const SizedBox(height: 14),
-                  DropdownButtonFormField<String?>(
-                    initialValue: _categoryId,
+                  DropdownButtonFormField<AssetCategory>(
+                    // Re-seed the form field when the value changes (loading an
+                    // asset into the form); without this the dropdown would keep
+                    // showing whatever it was first built with.
+                    key: ValueKey(_category),
+                    initialValue: _category,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Category'),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Uncategorised'),
-                      ),
-                      ...inventory.categories.map(
-                        (category) => DropdownMenuItem<String?>(
-                          value: category.id,
-                          child: Text(category.name),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => _categoryId = value),
+                    items: AssetCategory.values
+                        .map(
+                          (category) => DropdownMenuItem<AssetCategory>(
+                            value: category,
+                            child: Text(category.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) setState(() => _category = value);
+                    },
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -278,6 +292,33 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
                       hintText: 'Barangay Store Room',
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _quantityController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity owned',
+                      helperText: 'Chairs and tables are counted; a vehicle is 1',
+                    ),
+                    validator: (value) {
+                      final quantity = int.tryParse(value?.trim() ?? '');
+                      return (quantity == null || quantity < 1)
+                          ? 'Enter at least 1'
+                          : null;
+                    },
+                  ),
+                  if (_category == AssetCategory.vehicle) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _plateController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Plate number',
+                        hintText: 'ABC 1234',
+                      ),
+                    ),
+                  ],
                   const SectionHeader(title: 'CONDITION & POLICY'),
                   Text(
                     'Status',
@@ -314,34 +355,14 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
                         )
                         .toList(),
                   ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _requiresApproval,
-                    onChanged: (value) =>
-                        setState(() => _requiresApproval = value),
-                    title: const Text('Require approval'),
-                    subtitle: const Text(
-                      'Officials review each request before release',
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextFormField(
-                    controller: _depositController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Deposit or fee (₱)',
-                      prefixText: '₱ ',
-                    ),
-                  ),
                   const SizedBox(height: 14),
                   TextFormField(
-                    controller: _notesController,
+                    controller: _maintenanceController,
                     maxLines: 2,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: const InputDecoration(
-                      labelText: 'Internal notes (optional)',
+                      labelText: 'Maintenance note (optional)',
+                      helperText: 'Shown to officials when the item is out of service',
                       alignLabelWithHint: true,
                     ),
                   ),

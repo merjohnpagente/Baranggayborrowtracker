@@ -1,4 +1,5 @@
 import 'asset.dart';
+import 'user_profile.dart';
 
 /// Lifecycle of a request. Mirrors the `booking_status` enum in `schema.sql`.
 ///
@@ -207,6 +208,17 @@ class BorrowRequest {
   }
 
   factory BorrowRequest.fromMap(Map<String, dynamic> map) {
+    // The return condition and damage notes live on `transactions`, not on the
+    // booking. The queries embed that row as `transaction` (booking_id is
+    // unique, so it is at most one), and this reads them from there when the
+    // embedding was requested. A plain row without the embed still parses.
+    final transaction = map['transaction'] is Map
+        ? Map<String, dynamic>.from(map['transaction'] as Map)
+        : const <String, dynamic>{};
+
+    final rawCondition =
+        map['return_condition'] ?? transaction['return_condition'];
+
     return BorrowRequest(
       id: map['id'] as String? ?? '',
       referenceNo: (map['request_id'] as String?) ?? '—',
@@ -222,13 +234,16 @@ class BorrowRequest {
       reviewRemarks: map['rejection_reason'] as String?,
       authorizedDriverId: map['authorized_driver_id'] as String?,
       authorizedDriverName: map['authorized_driver_name'] as String?,
-      releasedBy: map['released_by'] as String?,
+      releasedBy:
+          (map['released_by'] as String?) ?? transaction['released_by'] as String?,
       releasedAt: _dateOrNull(map['released_at']),
       returnedAt: _dateOrNull(map['returned_at']),
       cancelledAt: _dateOrNull(map['cancelled_at']),
-      returnCondition: map['return_condition'] == null
+      returnCondition: rawCondition == null
           ? null
-          : AssetCondition.fromValue(map['return_condition'] as String?),
+          : AssetCondition.fromValue(rawCondition as String?),
+      returnRemarks:
+          (map['return_remarks'] as String?) ?? transaction['damage_notes'] as String?,
       documentUrls: _stringList(map['document_urls']),
       status: RequestStatus.fromValue(map['status'] as String?),
       overdue: (map['overdue'] as bool?) ?? false,

@@ -189,7 +189,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                   children: [
                     ChoiceChip(
                       label: const Text('All'),
-                      selected: inventory.categoryId == null,
+                      selected: inventory.category == null,
                       onSelected: (_) =>
                           context.read<InventoryProvider>().setCategory(null),
                     ),
@@ -198,11 +198,11 @@ class _AssetsScreenState extends State<AssetsScreen> {
                       (category) => Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
-                          label: Text(category.name),
-                          selected: inventory.categoryId == category.id,
+                          label: Text(category.label),
+                          selected: inventory.category == category,
                           onSelected: (_) => context
                               .read<InventoryProvider>()
-                              .setCategory(category.id),
+                              .setCategory(category),
                         ),
                       ),
                     ),

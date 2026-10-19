@@ -1,103 +1,191 @@
-name: Build
+name: Build Android APK
 
+# Barangay Borrow Tracker Android pipeline.
+#
+# TEST first, BUILD only when green — so an APK in the artifacts section can
+# never have come from code that failed analysis or tests.
+#
+# No Flutter SDK needed locally: everything runs here. `android/` is
+# git-ignored, so it is generated in the cloud and the launcher icons are
+# rendered from assets/icon/app_icon_1024.png on each build.
 on:
   push:
     branches: [main]
-  pull_request:
+    tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+# Supabase settings are read from repository *variables* (Settings → Secrets and
+# variables → Actions → Variables), not secrets: the anon/publishable key is
+# designed to ship inside a client app, and the real protection is Row Level
+# Security in Postgres. Leaving these blank simply builds the app in
+# "setup required" mode, which is a valid way to review it.
 env:
   SUPABASE_URL: ${{ vars.SUPABASE_URL }}
   SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
   BARANGAY_NAME: ${{ vars.BARANGAY_NAME }}
 
 jobs:
-  build:
-    name: Analyze & Build
+  # ---- 1) TEST: analyze + tests. The APK waits for this. ----
+  test:
+    name: Test
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      # Java 17 is the toolchain the Android Gradle Plugin and Gradle expect;
+      # pinning it here avoids a mismatch that only shows up mid-build.
+      - uses: actions/setup-java@v4
         with:
-          flutter-version: stable
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
           channel: stable
           cache: true
 
-      - name: Generate platform folders
-        # The android/ and web/ folders are git-ignored, so they are created
-        # here in the cloud. lib/main.dart is stashed and restored around the
-        # call: `flutter create` treats an existing entry point as
-        # replaceable, and losing it fails the build with a confusing "no main"
-        # error rather than an obvious one.
+      - name: Bootstrap platform folders if missing
         run: |
-          cp lib/main.dart /tmp/main.dart.bak
-          flutter create --platforms=android,web --org ph.barangay --project-name barangay_borrow_tracker .
-          cp /tmp/main.dart.bak lib/main.dart
-
-      - name: Raise minSdk to 23
-        run: |
-          for f in android/app/build.gradle.kts android/app/build.gradle; do
-            [ -f "$f" ] && sed -i -E 's/minSdk\s*=\s*flutter\.minSdkVersion/minSdk = 23/' "$f"
-          done
-
-      - name: Add camera permission
-        run: |
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
-            sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.CAMERA"/><uses-feature android:name="android.hardware.camera" android:required="false"/>#' "$MANIFEST"
+          if [ ! -d android/app ]; then
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=android --org ph.barangay --project-name barangay_borrow_tracker .
+            # `flutter create` treats an existing entry point as replaceable;
+            # restoring it keeps the build failing on our code, not on a
+            # regenerated scaffold.
+            cp /tmp/main.dart.bak lib/main.dart
+            # The scaffold's own test instantiates `MyApp`, which this project
+            # does not have. Left in place it would fail the Test job.
+            rm -f test/widget_test.dart
           fi
-          sed -i 's/android:label="[^"]*"/android:label="Barangay Borrow Tracker"/' "$MANIFEST"
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Generate launcher icons
-        # android/ is git-ignored and produced by `flutter create` above, so the
-        # launcher icons cannot be committed — they are rendered from
-        # assets/icon/app_icon_1024.png on every build instead. Without this the
-        # APK ships with Flutter's default launcher icon.
-        run: dart run flutter_launcher_icons
+      - run: flutter pub get
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
       - name: Test
-        run: flutter test --no-pub
+        run: flutter test
 
-      - name: Build release APK
+  # ---- 2) BUILD APK (only when Test is green) ----
+  apk:
+    name: APK
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Bootstrap platform folders if missing
+        run: |
+          if [ ! -d android/app ]; then
+            cp lib/main.dart /tmp/main.dart.bak
+            flutter create --platforms=android --org ph.barangay --project-name barangay_borrow_tracker .
+            cp /tmp/main.dart.bak lib/main.dart
+            rm -f test/widget_test.dart
+          fi
+
+      - name: Configure Android (label, camera permission, minSdk)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="[^"]*"/android:label="Barangay Borrow Tracker"/' "$MANIFEST"
+
+          # QR scanning needs the camera. Declared as not-required so the app
+          # still installs on a device without one — every other feature
+          # (browsing, requesting, history) works without scanning.
+          python3 - "$MANIFEST" <<'PY'
+          import sys, re
+          path = sys.argv[1]
+          src = open(path, encoding="utf-8").read()
+          perms = [
+              '<uses-permission android:name="android.permission.INTERNET"/>',
+              '<uses-permission android:name="android.permission.CAMERA"/>',
+          ]
+          missing = [p for p in perms if p not in src]
+          if missing:
+              block = "    " + "\n    ".join(missing) + "\n"
+              src = src.replace("<application", block + "    <application", 1)
+          if "uses-feature" not in src:
+              src = src.replace(
+                  "<application",
+                  '    <uses-feature android:name="android.hardware.camera" android:required="false"/>\n    <application',
+                  1)
+          open(path, "w", encoding="utf-8").write(src)
+          print("permissions patched")
+          PY
+
+          # mobile_scanner uses MLKit, which needs API 21+; Flutter's default
+          # min is already higher, so this is only asserted, not lowered.
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            if [ -f "$f" ]; then
+              grep -n "minSdk" "$f"
+            fi
+          done
+
+      - run: flutter pub get
+
+      - name: Generate launcher icons
+        # Without this the APK ships with Flutter's default launcher icon: the
+        # android/ folder is regenerated on every build, so the icons cannot be
+        # committed as files.
+        run: dart run flutter_launcher_icons
+
+      # The default build contains arm, arm64 and x64, so this one APK runs on
+      # any phone.
+      - name: Build release APK (phones, all ABIs)
         run: |
           flutter build apk --release \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
 
-      - name: Build split-per-ABI APKs (smaller downloads)
-        run: |
-          flutter build apk --release --split-per-abi \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
+      # Named for what it is, so the download is recognisable in the artifacts
+      # list rather than "app-release.apk".
+      - name: Rename
+        run: cp build/app/outputs/flutter-apk/app-release.apk Barangay-Borrow-Tracker.apk
 
-      - name: Upload APK
+      - name: Upload APK (phone)
         uses: actions/upload-artifact@v4
         with:
           name: barangay-borrow-tracker-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: Barangay-Borrow-Tracker.apk
           retention-days: 30
 
-      - name: Build web preview
+      # The arm build above cannot run on a PC emulator at all. x86_64 is what
+      # Android Studio, WSA and the standalone emulators want, so the app can
+      # be tried without a physical phone.
+      - name: Build release APK (laptop / emulator, x86_64)
         run: |
-          flutter build web \
+          flutter build apk --release --target-platform android-x64 \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
 
-      - name: Upload web build
+      - name: Rename (laptop)
+        run: cp build/app/outputs/flutter-apk/app-release.apk Barangay-Borrow-Tracker-laptop.apk
+
+      - name: Upload APK (laptop)
         uses: actions/upload-artifact@v4
         with:
-          name: barangay-borrow-tracker-web
-          path: build/web
-          retention-days: 14
+          name: barangay-borrow-tracker-apk-laptop
+          path: Barangay-Borrow-Tracker-laptop.apk
+          retention-days: 30
+
+      - name: Attach APKs to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Barangay-Borrow-Tracker.apk
+            Barangay-Borrow-Tracker-laptop.apk

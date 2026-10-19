@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/qr_payload.dart';
 import '../../data/models/borrow_request.dart';
 import '../../state/auth_provider.dart';
 import '../../state/requests_provider.dart';
@@ -72,8 +73,15 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
           onPressed: () async {
             final raw = await scanQr(context);
             if (!mounted || raw == null) return;
-            final id = raw.split('|').last;
-            context.push('/approvals/$id');
+            final payload = QrPayload.parse(raw);
+            if (payload == null || payload.type != 'request') {
+              AppToast.error(
+                context,
+                'Scan a request QR code to open its approval record.',
+              );
+              return;
+            }
+            context.push('/approvals/${payload.id}');
           },
           icon: const Icon(Icons.qr_code_scanner_rounded),
           label: const Text('Scan'),

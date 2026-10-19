@@ -63,17 +63,16 @@ class AssetCard extends StatelessWidget {
                           asset.status.label,
                           dense: true,
                         ),
-                        if (asset.category != null)
-                          Chip(
-                            label: Text(
-                              asset.category!.name,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.zero,
+                        Chip(
+                          label: Text(
+                            asset.category.label,
+                            style: const TextStyle(fontSize: 11),
                           ),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          padding: EdgeInsets.zero,
+                        ),
                       ],
                     ),
                     if (asset.location != null && asset.location!.isNotEmpty) ...[
@@ -121,7 +120,7 @@ class _Thumbnail extends StatelessWidget {
     return AssetPhoto(
       imageUrl: asset.imageUrl,
       assetCode: asset.code,
-      categoryIcon: asset.category?.icon,
+      categoryIcon: asset.category.icon,
       width: 62,
       height: 62,
       radius: 14,

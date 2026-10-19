@@ -95,7 +95,13 @@ class RequestsProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> isAssetAvailable({
+  /// `true` free, `false` taken, `null` when the check could not run.
+  ///
+  /// The form must be able to tell "the server said no" apart from "we could
+  /// not ask" — blocking a resident's request because their signal dropped
+  /// would be wrong, so the failure is surfaced instead of being folded into
+  /// `false`.
+  Future<bool?> isAssetAvailable({
     required String assetId,
     required DateTime from,
     required DateTime to,
@@ -107,7 +113,7 @@ class RequestsProvider extends ChangeNotifier {
         to: to,
       );
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -130,28 +136,53 @@ class RequestsProvider extends ChangeNotifier {
     return request;
   }
 
+  /// Approve or reject a request.
+  ///
+  /// The repository routes this to `approve_booking` / `reject_booking` rather
+  /// than a client-side update. Approval locks the booking row and re-checks
+  /// the schedule inside the transaction, so two officials tapping Approve a
+  /// second apart cannot both succeed.
   Future<BorrowRequest> review({
     required String id,
-    required String reviewerId,
     required bool approve,
     String? remarks,
   }) async {
-    final updated = await _repository.review(
-      id: id,
-      reviewerId: reviewerId,
-      approve: approve,
-      remarks: remarks,
-    );
+    final updated = approve
+        ? await _repository.approve(id: id, remarks: remarks)
+        : await _repository.reject(id: id, remarks: remarks ?? '');
     _replace(updated);
+    if (approve) {
+      _pendingReviews = _pendingReviews.where((r) => r.id != id).toList();
+    }
+    notifyListeners();
     return updated;
   }
 
+  /// Hand the asset over.
+  ///
+  /// The releasing officer is taken from the signed-in session inside
+  /// `release_asset`, not passed from here: otherwise a modified client could
+  /// put somebody else's name on the custody record.
   Future<BorrowRequest> release({
     required String id,
-    required String officerId,
+    AssetCondition initialCondition = AssetCondition.good,
+    List<String> includedItems = const [],
+    String? notes,
   }) async {
-    final updated = await _repository.release(id: id, officerId: officerId);
-    _replace(updated);
+    await _repository.release(
+      id: id,
+      initialCondition: initialCondition,
+      includedItems: includedItems,
+      notes: notes,
+    );
+    final updated = await _repository.fetchById(id);
+    if (updated != null) _replace(updated);
+    _ongoing = _ongoing.where((r) => r.id != id).toList();
+    notifyListeners();
+    if (updated == null) {
+      throw const BorrowException('The release was recorded but the request '
+          'could not be read back.');
+    }
     return updated;
   }
 
@@ -159,16 +190,24 @@ class RequestsProvider extends ChangeNotifier {
     required String id,
     required AssetCondition condition,
     String? remarks,
+    String? missingItems,
+    List<String> photoUrls = const [],
   }) async {
-    final updated = await _repository.markReturned(
+    await _repository.markReturned(
       id: id,
       condition: condition,
       remarks: remarks,
+      missingItems: missingItems,
+      photoUrls: photoUrls,
     );
-    _replace(updated);
-    _pendingReviews = _pendingReviews.where((r) => r.id != id).toList();
+    final updated = await _repository.fetchById(id);
     _ongoing = _ongoing.where((r) => r.id != id).toList();
     notifyListeners();
+    if (updated == null) {
+      throw const BorrowException('The return was recorded but the request '
+          'could not be read back.');
+    }
+    _replace(updated);
     return updated;
   }
 

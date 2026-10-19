@@ -37,9 +37,16 @@ class AppShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) {
+          // The branches are fixed (home, assets, requests, approvals,
+          // profile) but the *visible* destinations drop approvals for
+          // residents. Map the tap back to the branch it belongs to, or a
+          // resident tapping Profile would land on the approvals branch.
+          final branchIndex = isOfficial
+              ? value
+              : (value >= 3 ? value + 1 : value);
           navigationShell.goBranch(
-            value,
-            initialLocation: value == navigationShell.currentIndex,
+            branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
           );
         },
         destinations: [

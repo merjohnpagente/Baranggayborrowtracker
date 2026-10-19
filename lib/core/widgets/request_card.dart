@@ -148,8 +148,15 @@ class StatusTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final declined = request.status == RequestStatus.declined ||
-        request.status == RequestStatus.cancelled;
+    final rejected = request.status == RequestStatus.rejected;
+    final cancelled = request.status == RequestStatus.cancelled;
+    final withdrawn = rejected || cancelled;
+
+    // A rejection carries its reason but no `approved_at`, so the decision step
+    // is marked done from the status rather than from a timestamp that will
+    // never be written.
+    final decided =
+        withdrawn || request.reviewedAt != null || request.status != RequestStatus.pending;
 
     final steps = <_Step>[
       _Step(
@@ -159,11 +166,15 @@ class StatusTimeline extends StatelessWidget {
         done: true,
       ),
       _Step(
-        declined ? 'Declined' : 'Approved',
+        rejected
+            ? 'Rejected'
+            : cancelled
+                ? 'Cancelled'
+                : 'Approved',
         request.reviewedAt,
-        declined ? Icons.cancel_rounded : Icons.verified_rounded,
-        done: request.reviewedAt != null,
-        active: !declined && request.status == RequestStatus.approved,
+        withdrawn ? Icons.cancel_rounded : Icons.verified_rounded,
+        done: decided,
+        active: !withdrawn && request.status == RequestStatus.approved,
       ),
       _Step(
         'Released',

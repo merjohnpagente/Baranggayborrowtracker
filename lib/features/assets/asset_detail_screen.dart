@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/utils/formatters.dart';
 import '../../core/utils/qr_payload.dart';
 import '../../data/models/asset.dart';
 import '../../data/repositories/asset_repository.dart';
@@ -11,6 +10,7 @@ import '../../state/inventory_provider.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/asset_photo.dart';
 import '../../core/widgets/common.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
 import '../qr/qr_display_screen.dart';
 import '../qr/scanner_screen.dart';
@@ -128,15 +128,13 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                     ),
                   ],
                 ),
-                if (asset.category != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    '${asset.category!.name} · ${asset.code}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                const SizedBox(height: 12),
+                Text(
+                  '${asset.category.label} · ${asset.code}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ],
+                ),
                 if (asset.description != null &&
                     asset.description!.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -154,19 +152,23 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                   value: asset.code,
                 ),
                 InfoRow(
-                  icon: Icons.payments_outlined,
-                  label: 'Deposit / fee',
-                  value: asset.depositAmount > 0
-                      ? Fmt.peso(asset.depositAmount)
-                      : 'No deposit',
+                  icon: Icons.inventory_2_outlined,
+                  label: 'Quantity',
+                  value: '${asset.quantity}',
                 ),
-                InfoRow(
-                  icon: Icons.approval_outlined,
-                  label: 'Approval',
-                  value: asset.requiresApproval
-                      ? 'Requires barangay approval'
-                      : 'Walk-in allowed',
-                ),
+                if (asset.plateNumber != null)
+                  InfoRow(
+                    icon: Icons.directions_car_outlined,
+                    label: 'Plate number',
+                    value: asset.plateNumber!,
+                  ),
+                if (asset.maintenanceNote != null) ...[
+                  const SectionHeader(title: 'MAINTENANCE NOTE'),
+                  Text(
+                    asset.maintenanceNote!,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
                 if (auth.isOfficial) ...[
                   const SectionHeader(title: 'OFFICIAL CONTROLS'),
                   Card(
@@ -235,14 +237,16 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
               ],
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: asset.status.canRequest
+                  onPressed: asset.canRequest
                       ? () => context.push('/requests/new?asset=${asset.id}')
                       : null,
                   icon: const Icon(Icons.event_available_rounded),
                   label: Text(
-                    asset.status.canRequest
+                    asset.canRequest
                         ? 'Request this item'
-                        : 'Currently unavailable',
+                        : asset.isArchived
+                            ? 'Archived'
+                            : 'Currently unavailable',
                   ),
                 ),
               ),
@@ -268,7 +272,7 @@ class _HeaderImage extends StatelessWidget {
       child: AssetPhoto(
         imageUrl: asset.imageUrl,
         assetCode: asset.code,
-        categoryIcon: asset.category?.icon,
+        categoryIcon: asset.category.icon,
         radius: 0,
       ),
     );

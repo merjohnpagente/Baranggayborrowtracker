@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../app_assets.dart';
-import '../theme/app_theme.dart';
 
 /// Shows an asset photo, from wherever one actually exists.
 ///
@@ -96,9 +95,11 @@ class AssetPhoto extends StatelessWidget {
   IconData _glyphFor(String? iconName) => switch (iconName) {
         'directions_car' => Icons.directions_car_filled_rounded,
         'sports_basketball' => Icons.sports_basketball_rounded,
-        'celebration' => Icons.celebration_rounded,
         'campaign' => Icons.campaign_rounded,
-        'power' => Icons.electrical_services_rounded,
+        'chair' => Icons.chair_rounded,
+        'holiday_village' => Icons.holiday_village_rounded,
+        'tv' => Icons.tv_rounded,
+        'electrical_services' => Icons.electrical_services_rounded,
         _ => Icons.inventory_2_rounded,
       };
 }

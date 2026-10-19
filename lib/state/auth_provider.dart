@@ -25,7 +25,7 @@ class AuthProvider extends ChangeNotifier {
 
   UserRole get role => _profile?.role ?? UserRole.resident;
 
-  bool get isOfficial => role.canManageInventory;
+  bool get isOfficial => role.isOfficer;
 
   bool get isAdmin => role.canManageUsers;
 
@@ -53,7 +53,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     String? phone,
-    String? address,
+    String? purok,
   }) async {
     return _guard(() async {
       final result = await _repository.signUp(
@@ -61,7 +61,7 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
         phone: phone,
-        address: address,
+        purok: purok,
       );
       if (result.needsEmailConfirmation) {
         // Stay signed out until the link in the inbox is used.
@@ -82,13 +82,13 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> saveProfile({
     String? fullName,
     String? phone,
-    String? address,
+    String? purok,
   }) async {
     return _guard(() async {
       _profile = await _repository.updateProfile(
         fullName: fullName,
         phone: phone,
-        address: address,
+        purok: purok,
       );
       return true;
     });

@@ -19,6 +19,17 @@ class Fmt {
   static String dateTime(DateTime? value) =>
       value == null ? '—' : '${_date.format(value)} • ${_time.format(value)}';
 
+  /// Short "how long ago" for notification rows.
+  static String relative(DateTime? value) {
+    if (value == null) return '—';
+    final diff = DateTime.now().difference(value);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return date(value);
+  }
+
   static String time(DateTime? value) =>
       value == null ? '—' : _time.format(value);
 

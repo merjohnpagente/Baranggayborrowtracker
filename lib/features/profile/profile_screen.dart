@@ -10,7 +10,7 @@ import '../../state/inventory_provider.dart';
 import '../../state/requests_provider.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/common.dart';
-import 'user_management_screen.dart';
+import '../../core/widgets/status_chip.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -35,7 +35,7 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  profile.avatar,
+                  UserAvatar(profile: profile, radius: 26),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -74,15 +74,15 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
           ),
-          if (profile.address != null && profile.address!.isNotEmpty) ...[
+          if (profile.purok != null && profile.purok!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: InfoRow(
                   icon: Icons.home_outlined,
-                  label: 'Address',
-                  value: profile.address!,
+                  label: 'Purok',
+                  value: profile.purok!,
                 ),
               ),
             ),
@@ -95,6 +95,20 @@ class ProfileScreen extends StatelessWidget {
                   leading: const Icon(Icons.edit_outlined),
                   title: const Text('Edit details'),
                   onTap: () => _editProfile(context, profile),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.history_rounded),
+                  title: const Text('Borrow history'),
+                  subtitle: const Text('Completed, declined and withdrawn'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/history'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.notifications_none_rounded),
+                  title: const Text('Notifications'),
+                  subtitle: const Text('Approvals, due dates and returns'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/notifications'),
                 ),
                 if (auth.isAdmin)
                   ListTile(
@@ -183,7 +197,7 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _editProfile(BuildContext context, UserProfile profile) async {
     final nameController = TextEditingController(text: profile.fullName);
     final phoneController = TextEditingController(text: profile.phone ?? '');
-    final addressController = TextEditingController(text: profile.address ?? '');
+    final purokController = TextEditingController(text: profile.purok ?? '');
     final formKey = GlobalKey<FormState>();
 
     final saved = await showDialog<bool>(
@@ -211,9 +225,8 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  controller: addressController,
-                  decoration:
-                      const InputDecoration(labelText: 'Purok / Address'),
+                  controller: purokController,
+                  decoration: const InputDecoration(labelText: 'Purok'),
                 ),
               ],
             ),
@@ -241,7 +254,7 @@ class ProfileScreen extends StatelessWidget {
     final ok = await auth.saveProfile(
       fullName: nameController.text.trim(),
       phone: phoneController.text.trim(),
-      address: addressController.text.trim(),
+      purok: purokController.text.trim(),
     );
     if (!context.mounted) return;
     if (ok) {

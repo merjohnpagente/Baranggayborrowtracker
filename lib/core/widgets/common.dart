@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../data/models/user_profile.dart';
+
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key, this.label});
 
@@ -119,5 +121,32 @@ class AppToast {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+/// The circle shown wherever a person is named.
+///
+/// Initials rather than a photo: resident accounts have no avatar upload, and
+/// a broken `NetworkImage` in a list row looks worse than a plain monogram.
+class UserAvatar extends StatelessWidget {
+  const UserAvatar({super.key, required this.profile, this.radius = 18});
+
+  final UserProfile profile;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: theme.colorScheme.primaryContainer,
+      child: Text(
+        profile.initials,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w800,
+          fontSize: radius * 0.7,
+        ),
+      ),
+    );
   }
 }

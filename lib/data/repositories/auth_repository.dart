@@ -51,15 +51,17 @@ class AuthRepository {
     required String email,
     required String password,
     String? phone,
-    String? address,
+    String? purok,
   }) async {
     final response = await _client.auth.signUp(
       email: email.trim(),
       password: password,
       data: {
         'full_name': fullName.trim(),
-        if (phone != null && phone.isNotEmpty) 'phone': phone.trim(),
-        if (address != null && address.isNotEmpty) 'address': address.trim(),
+        // The names here must match `handle_new_user()` in schema.sql, which
+        // copies them out of the sign-up metadata into `profiles`.
+        if (phone != null && phone.isNotEmpty) 'phone_number': phone.trim(),
+        if (purok != null && purok.isNotEmpty) 'purok': purok.trim(),
       },
     );
 
@@ -92,26 +94,35 @@ class AuthRepository {
   }
 
   Future<void> sendPasswordReset(String email) async {
+    // `redirectTo` is omitted on purpose: the Android app has no deep link
+    // handler, so Supabase sends its own reset page instead of redirecting to
+    // a URL the app cannot open.
     await _client.auth.resetPasswordForEmail(email.trim());
   }
 
   Future<UserProfile> updateProfile({
     String? fullName,
     String? phone,
-    String? address,
+    String? purok,
   }) async {
     final current = _cache;
     if (current == null) {
       throw const AuthException('You are not signed in.');
     }
-    final updated = current.copyWith(
-      fullName: fullName ?? current.fullName,
-      phone: phone ?? current.phone,
-      address: address ?? current.address,
-    );
+
+    // Built explicitly rather than from the model: `toSelfUpdate()` would also
+    // write `barangay`, and a stale value there should not be able to overwrite
+    // what the office set.
+    final updates = <String, dynamic>{
+      'full_name': (fullName ?? current.fullName).trim(),
+      'phone_number': phone ?? current.phone,
+      'purok': purok ?? current.purok,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+
     final response = await _client
         .from('profiles')
-        .update(updated.toUpdate())
+        .update(updates)
         .eq('id', current.id)
         .select()
         .maybeSingle();
@@ -122,14 +133,23 @@ class AuthRepository {
     return _cache!;
   }
 
-  /// Admin-only: change somebody else's role or reactivate an account.
+  /// Admin-only: change somebody else's role.
+  ///
+  /// Assigning a role is also the act of activating the account: a new signup
+  /// starts as `resident` / `pending` (the `handle_new_user` trigger enforces
+  /// that, so public registration cannot grant privileges), and the only way
+  /// it becomes usable is an administrator acting on it here.
   Future<UserProfile> updateUserRole({
     required String userId,
     required UserRole role,
   }) async {
     final response = await _client
         .from('profiles')
-        .update({'role': role.value, 'updated_at': DateTime.now().toIso8601String()})
+        .update({
+          'role': role.value,
+          'account_status': AccountStatus.active.value,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
         .eq('id', userId)
         .select()
         .maybeSingle();

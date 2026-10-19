@@ -88,7 +88,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
                         child: Row(
                           children: [
-                            user.avatar,
+                            UserAvatar(profile: user, radius: 20),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -102,9 +102,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    user.role.label,
+                                    user.accountStatus == AccountStatus.active
+                                        ? user.role.label
+                                        : '${user.role.label} · '
+                                            '${user.accountStatus.label}',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                      color: user.accountStatus ==
+                                              AccountStatus.active
+                                          ? theme.colorScheme.onSurfaceVariant
+                                          : theme.colorScheme.error,
                                     ),
                                   ),
                                 ],
