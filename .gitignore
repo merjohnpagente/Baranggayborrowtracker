@@ -1,0 +1,31 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Android / iOS generated locally
+android/
+ios/
+web/
+macos/
+windows/
+linux/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets - never commit real keys
+*.env
+supabase/.temp/
