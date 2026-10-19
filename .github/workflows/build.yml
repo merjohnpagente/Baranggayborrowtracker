@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+  BARANGAY_NAME: ${{ vars.BARANGAY_NAME }}
+
+jobs:
+  build:
+    name: Analyze & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+          channel: stable
+          cache: true
+
+      - name: Generate platform folders
+        # The android/ and web/ folders are git-ignored, so they are created
+        # here in the cloud. lib/main.dart is stashed and restored around the
+        # call: `flutter create` treats an existing entry point as
+        # replaceable, and losing it fails the build with a confusing "no main"
+        # error rather than an obvious one.
+        run: |
+          cp lib/main.dart /tmp/main.dart.bak
+          flutter create --platforms=android,web --org ph.barangay --project-name barangay_borrow_tracker .
+          cp /tmp/main.dart.bak lib/main.dart
+
+      - name: Raise minSdk to 23
+        run: |
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            [ -f "$f" ] && sed -i -E 's/minSdk\s*=\s*flutter\.minSdkVersion/minSdk = 23/' "$f"
+          done
+
+      - name: Add camera permission
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
+            sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.CAMERA"/><uses-feature android:name="android.hardware.camera" android:required="false"/>#' "$MANIFEST"
+          fi
+          sed -i 's/android:label="[^"]*"/android:label="Barangay Borrow Tracker"/' "$MANIFEST"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test --no-pub
+
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
+
+      - name: Build split-per-ABI APKs (smaller downloads)
+        run: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: barangay-borrow-tracker-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+
+      - name: Build web preview
+        run: |
+          flutter build web \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: barangay-borrow-tracker-web
+          path: build/web
+          retention-days: 14
