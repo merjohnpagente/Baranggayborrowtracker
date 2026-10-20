@@ -13,7 +13,6 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
 import '../qr/qr_display_screen.dart';
-import '../qr/scanner_screen.dart';
 
 class AssetDetailScreen extends StatefulWidget {
   const AssetDetailScreen({super.key, required this.assetId});
@@ -60,19 +59,6 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
       AppToast.success(context, 'Marked as ${status.label.toLowerCase()}.');
     } catch (error) {
       if (mounted) AppToast.error(context, error.toString());
-    }
-  }
-
-  Future<void> _scan() async {
-    final raw = await scanQr(context);
-    if (!mounted || raw == null) return;
-    final payload = QrPayload.parse(raw);
-    if (payload == null || payload.type != 'asset') {
-      AppToast.error(context, 'That QR code is not an asset code.');
-      return;
-    }
-    if (payload.id != widget.assetId) {
-      context.push('/assets/${payload.id}');
     }
   }
 

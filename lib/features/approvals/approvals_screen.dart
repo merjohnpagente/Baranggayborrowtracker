@@ -72,7 +72,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () async {
             final raw = await scanQr(context);
-            if (!mounted || raw == null) return;
+            if (!context.mounted || raw == null) return;
             final payload = QrPayload.parse(raw);
             if (payload == null || payload.type != 'request') {
               AppToast.error(

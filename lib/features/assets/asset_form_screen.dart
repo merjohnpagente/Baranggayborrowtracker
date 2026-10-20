@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -67,11 +65,11 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
   }
 
   Future<void> _load() async {
+    final repository = context.read<AssetRepository>();
     final inventory = context.read<InventoryProvider>();
     await inventory.loadCategories();
     final id = widget.assetId;
     if (id != null) {
-      final repository = context.read<AssetRepository>();
       final asset = await repository.fetchAsset(id);
       if (!mounted) return;
       if (asset != null) {
@@ -94,6 +92,7 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
+    final repository = context.read<AssetRepository>();
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: source,
@@ -105,9 +104,7 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
     setState(() => _uploading = true);
     try {
       final bytes = await picked.readAsBytes();
-      final url = await context
-          .read<AssetRepository>()
-          .uploadPhoto(Uint8List.fromList(bytes), picked.name);
+      final url = await repository.uploadPhoto(bytes, picked.name);
       if (!mounted) return;
       setState(() {
         _imageUrls = [url, ..._imageUrls.skip(1)];
@@ -177,7 +174,6 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final inventory = context.watch<InventoryProvider>();
 
     return Scaffold(
       appBar: AppBar(

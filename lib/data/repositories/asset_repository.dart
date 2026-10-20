@@ -136,7 +136,7 @@ class AssetRepository {
   }
 
   /// Uploads a photo to the public bucket and returns its URL.
-  Future<String?> uploadPhoto(Uint8List bytes, String fileName) async {
+  Future<String> uploadPhoto(Uint8List bytes, String fileName) async {
     final path = 'assets/${DateTime.now().millisecondsSinceEpoch}_$fileName';
     await _client.storage
         .from(SupabaseService.photoBucket)
@@ -172,8 +172,8 @@ class AssetRepository {
   static List<Map<String, dynamic>> _rows(dynamic data) {
     if (data is List) {
       return data
-          .where((e) => e is Map)
-          .map((e) => Map<String, dynamic>.from(e as Map))
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
           .toList();
     }
     return const [];

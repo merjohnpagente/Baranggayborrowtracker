@@ -35,7 +35,7 @@ class RequestsProvider extends ChangeNotifier {
   List<BorrowRequest> get overdueMine =>
       _mine.where((r) => r.isLate).toList();
 
-  List<BorrowRequest> upcomingMine {
+  List<BorrowRequest> get upcomingMine {
     final active = activeMine;
     active.sort((a, b) => a.returnDate.compareTo(b.returnDate));
     return active;

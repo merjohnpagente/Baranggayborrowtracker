@@ -23,7 +23,6 @@ class NotificationRepository {
         .eq('recipient_id', uid)
         .order('created_at', ascending: false)
         .limit(limit);
-    if (data is! List) return const [];
     return data
         .whereType<Map>()
         .map((row) => NotificationItem.fromMap(

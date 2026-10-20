@@ -142,7 +142,7 @@ class ProfileScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
-                children: [
+                children: const [
                   InfoRow(
                     icon: Icons.apartment_rounded,
                     label: 'Barangay',
