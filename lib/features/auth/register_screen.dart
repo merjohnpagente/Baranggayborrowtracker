@@ -148,8 +148,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               setState(() => _obscure = !_obscure),
                           icon: Icon(
                             _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                           ),
                         ),
                       ),
