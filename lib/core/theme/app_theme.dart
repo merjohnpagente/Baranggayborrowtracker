@@ -53,18 +53,29 @@ class AppTheme {
         : seeded.copyWith(
             primary: const Color(0xFF9CC7F0),
             onPrimary: const Color(0xFF04263F),
+            primaryContainer: const Color(0xFF1A4566),
+            onPrimaryContainer: const Color(0xFFD6E9FC),
             secondary: const Color(0xFF8FC4F5),
+            onSecondary: const Color(0xFF05263E),
+            secondaryContainer: const Color(0xFF143E5D),
+            onSecondaryContainer: const Color(0xFFD7EAFB),
             error: const Color(0xFFFF8A8A),
+            onError: const Color(0xFF3B0909),
+            surface: const Color(0xFF0E1923),
+            onSurface: const Color(0xFFE6EDF5),
+            outlineVariant: const Color(0xFF2B3F50),
           );
 
     final base = ThemeData(colorScheme: scheme, useMaterial3: true);
+    final isDark = brightness == Brightness.dark;
 
     return base.copyWith(
       scaffoldBackgroundColor:
-          brightness == Brightness.light ? background : scheme.surface,
+          isDark ? const Color(0xFF09121A) : background,
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
+        backgroundColor: isDark ? const Color(0xFF0E1923) : scheme.surface,
         foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
@@ -76,21 +87,24 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: brightness == Brightness.light
-            ? Colors.white
-            : scheme.surfaceContainerHigh,
+        color: isDark ? const Color(0xFF16232E) : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.7),
+            color: scheme.outlineVariant.withValues(alpha: isDark ? 1 : 0.7),
           ),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: isDark ? const Color(0xFF16232E) : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: brightness == Brightness.light
-            ? Colors.white
-            : scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        fillColor: isDark ? const Color(0xFF101C26) : Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: scheme.outlineVariant),
@@ -134,8 +148,13 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,
-        backgroundColor: scheme.surface,
+        elevation: 3,
+        backgroundColor: isDark ? const Color(0xFF0E1923) : scheme.surface,
+        surfaceTintColor: Colors.transparent,
         indicatorColor: scheme.primaryContainer,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
@@ -146,11 +165,18 @@ class AppTheme {
           ),
         ),
       ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 2,
+        highlightElevation: 5,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
       dividerTheme: DividerThemeData(
-        color: scheme.outlineVariant.withValues(alpha: 0.7),
+        color: scheme.outlineVariant.withValues(alpha: isDark ? 1 : 0.7),
         space: 1,
         thickness: 1,
       ),
@@ -169,27 +195,32 @@ class StatusPalette {
   const StatusPalette._();
 
   static Color forAsset(BuildContext context, String status) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return switch (status) {
-      'available' => AppTheme.success,
-      'reserved' => AppTheme.warning,
-      'borrowed' => AppTheme.blue,
-      'maintenance' => const Color(0xFFE65100),
+      'available' => isDark ? const Color(0xFF56D99A) : AppTheme.success,
+      'reserved' => isDark ? const Color(0xFFFFC857) : AppTheme.warning,
+      'borrowed' => isDark ? const Color(0xFF8FC4F5) : AppTheme.blue,
+      'maintenance' =>
+        isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
       'retired' => scheme.outline,
       _ => scheme.outline,
     };
   }
 
   static Color forRequest(BuildContext context, String status) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     return switch (status) {
-      'pending' => AppTheme.warning,
-      'approved' => AppTheme.success,
-      'released' => AppTheme.blue,
-      'returned' => AppTheme.success,
-      'completed' => AppTheme.success,
-      'overdue' => AppTheme.danger,
-      'rejected' => AppTheme.danger,
+      'pending' => isDark ? const Color(0xFFFFC857) : AppTheme.warning,
+      'approved' => isDark ? const Color(0xFF56D99A) : AppTheme.success,
+      'released' => isDark ? const Color(0xFF8FC4F5) : AppTheme.blue,
+      'returned' => isDark ? const Color(0xFF56D99A) : AppTheme.success,
+      'completed' => isDark ? const Color(0xFF56D99A) : AppTheme.success,
+      'overdue' => isDark ? const Color(0xFFFF8A8A) : AppTheme.danger,
+      'rejected' => isDark ? const Color(0xFFFF8A8A) : AppTheme.danger,
       'cancelled' => scheme.outline,
       _ => scheme.outline,
     };

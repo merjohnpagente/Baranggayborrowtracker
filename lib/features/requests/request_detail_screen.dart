@@ -13,6 +13,7 @@ import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/request_card.dart';
 import '../../core/widgets/status_chip.dart';
+import '../../routes/app_page.dart';
 import '../qr/qr_display_screen.dart';
 
 class RequestDetailScreen extends StatefulWidget {
@@ -217,8 +218,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   void _showQr(BorrowRequest request) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => QrDisplayScreen(
+      appRoute<void>(
+        (_) => QrDisplayScreen(
           title: 'Release pass',
           payload: QrPayload.forRequest(request.id),
           subtitle:

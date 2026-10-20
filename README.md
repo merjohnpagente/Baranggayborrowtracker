@@ -149,6 +149,8 @@ works with no network.
 
 Open **Profile → Settings**:
 
+* **Appearance** — System, Light or Dark; the choice is saved on the phone and
+  the whole app switches with a short cross-fade.
 * **Version** — read from the installed build via `package_info_plus`, with a
   copy button.
 * **Developer** — Merjohn Pagente, developed by MerjDev.
@@ -157,6 +159,10 @@ Open **Profile → Settings**:
 * **Buy me a coffee** — GCash **0915 043 5696**; tapping copies the number for a
   broke developer. Thank you.
 * **Storage** — a reminder that nothing leaves the phone.
+
+Page pushes, tab switches and list entrances use short, one-shot animations.
+If Android's **Remove animations** accessibility setting is on, the app skips
+the motion instead of forcing it.
 
 The splash screen also credits **By MerjDev**.
 

@@ -12,6 +12,7 @@ import '../../state/notifications_provider.dart';
 import '../../state/requests_provider.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/common.dart';
+import '../../core/widgets/motion.dart';
 import '../../core/widgets/request_card.dart';
 import '../qr/scanner_screen.dart';
 
@@ -142,33 +143,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _StatGrid(),
                   if (auth.isOfficial) ...[
                     const SectionHeader(title: 'OFFICIAL TOOLS'),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ActionTile(
-                            icon: Icons.qr_code_scanner_rounded,
-                            label: 'Scan QR',
-                            onTap: _scan,
+                    AnimatedEntrance(
+                      delay: Motion.stagger(1, stepMs: 70),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.qr_code_scanner_rounded,
+                              label: 'Scan QR',
+                              onTap: _scan,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ActionTile(
-                            icon: Icons.fact_check_rounded,
-                            label: 'Approvals',
-                            badge: requests.pendingReviews.isEmpty
-                                ? null
-                                : '${requests.pendingReviews.length}',
-                            onTap: () => context.go('/approvals'),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.fact_check_rounded,
+                              label: 'Approvals',
+                              badge: requests.pendingReviews.isEmpty
+                                  ? null
+                                  : '${requests.pendingReviews.length}',
+                              onTap: () => context.go('/approvals'),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    _ActionTile(
-                      icon: Icons.bar_chart_rounded,
-                      label: 'Reports & statistics',
-                      onTap: () => context.push('/reports'),
+                    AnimatedEntrance(
+                      delay: Motion.stagger(2, stepMs: 70),
+                      child: _ActionTile(
+                        icon: Icons.bar_chart_rounded,
+                        label: 'Reports & statistics',
+                        onTap: () => context.push('/reports'),
+                      ),
                     ),
                   ],
                   SectionHeader(
@@ -185,25 +192,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onAction: () => context.go('/assets'),
                     )
                   else
-                    ...upcoming.map(
-                      (request) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: RequestCard(
-                          request: request,
-                          onTap: () => context.push('/requests/${request.id}'),
-                        ),
-                      ),
+                    ...upcoming.asMap().entries.map(
+                      (entry) {
+                        final request = entry.value;
+                        return AnimatedEntrance(
+                          key: ValueKey('dashboard-request-${request.id}'),
+                          delay: Motion.stagger(entry.key + 1),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: RequestCard(
+                              request: request,
+                              onTap: () =>
+                                  context.push('/requests/${request.id}'),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   if (requests.overdueMine.isNotEmpty) ...[
                     const SectionHeader(title: 'NEEDS ATTENTION'),
-                    ...requests.overdueMine.map(
-                      (request) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: RequestCard(
-                          request: request,
-                          onTap: () => context.push('/requests/${request.id}'),
-                        ),
-                      ),
+                    ...requests.overdueMine.asMap().entries.map(
+                      (entry) {
+                        final request = entry.value;
+                        return AnimatedEntrance(
+                          key: ValueKey('dashboard-overdue-${request.id}'),
+                          delay: Motion.stagger(entry.key + 1),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: RequestCard(
+                              request: request,
+                              onTap: () =>
+                                  context.push('/requests/${request.id}'),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                   if (auth.isOfficial &&
@@ -213,15 +236,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       actionLabel: 'Open queue',
                       onAction: () => context.go('/approvals'),
                     ),
-                    ...requests.pendingReviews.take(3).map(
-                          (request) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: RequestCard(
-                              request: request,
-                              showRequester: true,
-                              onTap: () => context.push('/approvals/${request.id}'),
-                            ),
-                          ),
+                    ...requests.pendingReviews.take(3).toList().asMap().entries.map(
+                          (entry) {
+                            final request = entry.value;
+                            return AnimatedEntrance(
+                              key: ValueKey(
+                                'dashboard-review-${request.id}',
+                              ),
+                              delay: Motion.stagger(entry.key + 1),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: RequestCard(
+                                  request: request,
+                                  showRequester: true,
+                                  onTap: () => context.push(
+                                    '/approvals/${request.id}',
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                   ],
                   const SectionHeader(title: 'AVAILABLE NOW'),
@@ -257,19 +291,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ];
     }
     return [
-      ...available.map(
-        (asset) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: AssetCard(
-            asset: asset,
-            onTap: () => context.push('/assets/${asset.id}'),
-          ),
-        ),
+      ...available.asMap().entries.map(
+        (entry) {
+          final asset = entry.value;
+          return AnimatedEntrance(
+            key: ValueKey('available-${asset.id}'),
+            delay: Motion.stagger(entry.key + 1),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: AssetCard(
+                asset: asset,
+                onTap: () => context.push('/assets/${asset.id}'),
+              ),
+            ),
+          );
+        },
       ),
-      OutlinedButton.icon(
-        onPressed: () => context.go('/assets'),
-        icon: const Icon(Icons.grid_view_rounded, size: 18),
-        label: const Text('See the full catalogue'),
+      AnimatedEntrance(
+        delay: Motion.stagger(available.length + 1),
+        child: OutlinedButton.icon(
+          onPressed: () => context.go('/assets'),
+          icon: const Icon(Icons.grid_view_rounded, size: 18),
+          label: const Text('See the full catalogue'),
+        ),
       ),
     ];
   }
@@ -340,7 +384,15 @@ class _StatGrid extends StatelessWidget {
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
       childAspectRatio: 1.25,
-      children: stats,
+      children: [
+        for (var i = 0; i < stats.length; i++)
+          AnimatedEntrance(
+            key: ValueKey('dashboard-stat-$i'),
+            delay: Motion.stagger(i, stepMs: 55),
+            offset: const Offset(0, 0.08),
+            child: stats[i],
+          ),
+      ],
     );
   }
 }

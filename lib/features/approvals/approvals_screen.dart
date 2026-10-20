@@ -8,6 +8,7 @@ import '../../state/auth_provider.dart';
 import '../../state/requests_provider.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 import '../../core/widgets/request_card.dart';
 import '../qr/scanner_screen.dart';
 
@@ -145,10 +146,14 @@ class _QueueList extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final request = requests[index];
-          return RequestCard(
-            request: request,
-            showRequester: true,
-            onTap: () => context.push('$routePrefix/${request.id}'),
+          return AnimatedEntrance(
+            key: ValueKey(request.id),
+            delay: Motion.stagger(index),
+            child: RequestCard(
+              request: request,
+              showRequester: true,
+              onTap: () => context.push('$routePrefix/${request.id}'),
+            ),
           );
         },
       ),

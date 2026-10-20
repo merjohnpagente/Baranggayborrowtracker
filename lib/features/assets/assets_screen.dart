@@ -10,6 +10,7 @@ import '../../state/inventory_provider.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 
 class AssetsScreen extends StatefulWidget {
   const AssetsScreen({super.key});
@@ -165,9 +166,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final asset = inventory.assets[index];
-                      return AssetCard(
-                        asset: asset,
-                        onTap: () => context.push('/assets/${asset.id}'),
+                      return AnimatedEntrance(
+                        key: ValueKey(asset.id),
+                        delay: Motion.stagger(index),
+                        child: AssetCard(
+                          asset: asset,
+                          onTap: () => context.push('/assets/${asset.id}'),
+                        ),
                       );
                     },
                   ),

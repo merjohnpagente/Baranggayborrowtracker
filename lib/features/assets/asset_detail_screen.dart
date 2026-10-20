@@ -12,6 +12,7 @@ import '../../core/widgets/asset_photo.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
+import '../../routes/app_page.dart';
 import '../qr/qr_display_screen.dart';
 
 class AssetDetailScreen extends StatefulWidget {
@@ -190,8 +191,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
                 const SizedBox(height: 18),
                 OutlinedButton.icon(
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => QrDisplayScreen(
+                    appRoute<void>(
+                      (_) => QrDisplayScreen(
                         title: asset.name,
                         payload: QrPayload.forAsset(asset.id),
                         subtitle:
@@ -253,13 +254,17 @@ class _HeaderImage extends StatelessWidget {
   Widget build(BuildContext context) {
     // AssetPhoto resolves the record's uploaded URL first, then a bundled
     // photograph by asset code, then the category icon — so this header is
-    // never an empty grey band.
-    return SizedBox.expand(
-      child: AssetPhoto(
-        imageUrl: asset.imageUrl,
-        assetCode: asset.code,
-        categoryIcon: asset.category.icon,
-        radius: 0,
+    // never an empty grey band. The same tag on the list thumbnail turns the
+    // push into a shared-element transition.
+    return Hero(
+      tag: 'asset-photo-${asset.id}',
+      child: SizedBox.expand(
+        child: AssetPhoto(
+          imageUrl: asset.imageUrl,
+          assetCode: asset.code,
+          categoryIcon: asset.category.icon,
+          radius: 0,
+        ),
       ),
     );
   }

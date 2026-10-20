@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 import '../../data/models/notification_item.dart';
 import '../../state/notifications_provider.dart';
 
@@ -95,7 +96,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final item = items[index];
-        return Card(
+        return AnimatedEntrance(
+          key: ValueKey(item.id),
+          delay: Motion.stagger(index),
+          child: Card(
           color: item.isUnread
               ? theme.colorScheme.primaryContainer.withValues(alpha: 0.28)
               : null,
@@ -150,6 +154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 : null,
             onTap: () => _open(item),
           ),
+        ),
         );
       },
     );
@@ -167,16 +172,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         NotificationType.maintenanceAlert => Icons.build_outlined,
       };
 
-  Color _tintFor(NotificationType type, ThemeData theme) => switch (type) {
-        NotificationType.requestApproved ||
-        NotificationType.assetReturned =>
-          const Color(0xFF169B62),
-        NotificationType.requestRejected ||
-        NotificationType.overdueReturn =>
-          const Color(0xFFDC3545),
-        NotificationType.returnDueSoon ||
-        NotificationType.maintenanceAlert =>
-          const Color(0xFFF59E0B),
-        _ => theme.colorScheme.primary,
-      };
+  Color _tintFor(NotificationType type, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    return switch (type) {
+      NotificationType.requestApproved ||
+      NotificationType.assetReturned =>
+        isDark ? const Color(0xFF56D99A) : const Color(0xFF169B62),
+      NotificationType.requestRejected ||
+      NotificationType.overdueReturn =>
+        isDark ? const Color(0xFFFF8A8A) : const Color(0xFFDC3545),
+      NotificationType.returnDueSoon ||
+      NotificationType.maintenanceAlert =>
+        isDark ? const Color(0xFFFFC857) : const Color(0xFFF59E0B),
+      _ => theme.colorScheme.primary,
+    };
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/formatters.dart';
 import '../../data/models/asset.dart';
 import 'asset_photo.dart';
+import 'motion.dart';
 import 'status_chip.dart';
 
 class AssetCard extends StatelessWidget {
@@ -117,13 +118,16 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AssetPhoto(
-      imageUrl: asset.imageUrl,
-      assetCode: asset.code,
-      categoryIcon: asset.category.icon,
-      width: 62,
-      height: 62,
-      radius: 14,
+    return Hero(
+      tag: 'asset-photo-${asset.id}',
+      child: AssetPhoto(
+        imageUrl: asset.imageUrl,
+        assetCode: asset.code,
+        categoryIcon: asset.category.icon,
+        width: 62,
+        height: 62,
+        radius: 14,
+      ),
     );
   }
 }
@@ -148,6 +152,14 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.brightness == Brightness.dark
+        ? Color.lerp(color, Colors.white, 0.35)!
+        : color;
+    final valueStyle = theme.textTheme.headlineSmall?.copyWith(
+      fontWeight: FontWeight.w800,
+    );
+    final numericValue = int.tryParse(value);
+
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -161,18 +173,26 @@ class StatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 18, color: color),
+                child: Icon(icon, size: 18, color: accent),
               ),
               const SizedBox(height: 10),
-              Text(
-                value,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+              if (numericValue == null)
+                Text(value, style: valueStyle)
+              else
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: numericValue.toDouble()),
+                  duration: Motion.reduced(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 650),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, animated, _) => Text(
+                    animated.round().toString(),
+                    style: valueStyle,
+                  ),
                 ),
-              ),
               Text(
                 label,
                 maxLines: 2,

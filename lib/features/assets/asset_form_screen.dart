@@ -373,11 +373,13 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
                 child: FilledButton.icon(
                   onPressed: _saving ? null : _save,
                   icon: _saving
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2.2, color: Colors.white),
+                            strokeWidth: 2.2,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
                         )
                       : const Icon(Icons.save_outlined),
                   label: Text(_isEditing ? 'Save changes' : 'Add asset'),

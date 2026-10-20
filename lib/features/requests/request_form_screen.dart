@@ -294,11 +294,13 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           child: FilledButton.icon(
             onPressed: _submitting || (_asset == null) ? null : _submit,
             icon: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2.2, color: Colors.white),
+                      strokeWidth: 2.2,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
                   )
                 : const Icon(Icons.send_rounded),
             label: Text(

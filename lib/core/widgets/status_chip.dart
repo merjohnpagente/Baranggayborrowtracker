@@ -43,7 +43,9 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 8 : 10,
         vertical: dense ? 3 : 5,
@@ -60,13 +62,15 @@ class StatusChip extends StatelessWidget {
             Icon(icon, size: dense ? 12 : 14, color: color),
             SizedBox(width: dense ? 4 : 6),
           ],
-          Text(
-            label,
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
             style: TextStyle(
               color: color,
               fontSize: dense ? 11 : 12,
               fontWeight: FontWeight.w700,
             ),
+            child: Text(label),
           ),
         ],
       ),

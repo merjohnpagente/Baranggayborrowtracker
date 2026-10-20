@@ -12,6 +12,7 @@ import 'data/repositories/notification_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'features/splash/splash_screen.dart';
 import 'routes/app_router.dart';
+import 'state/appearance_provider.dart';
 import 'state/auth_provider.dart';
 import 'state/inventory_provider.dart';
 import 'state/notifications_provider.dart';
@@ -29,6 +30,7 @@ Future<void> main() async {
   final borrowRepository = BorrowRepository(store);
   final notificationRepository = NotificationRepository(store);
   final reportRepository = ReportRepository(store);
+  final appearance = AppearanceProvider(store);
 
   runApp(
     MultiProvider(
@@ -39,6 +41,7 @@ Future<void> main() async {
         Provider<BorrowRepository>.value(value: borrowRepository),
         Provider<NotificationRepository>.value(value: notificationRepository),
         Provider<ReportRepository>.value(value: reportRepository),
+        ChangeNotifierProvider<AppearanceProvider>.value(value: appearance),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(authRepository)..bootstrap(),
         ),
@@ -71,25 +74,66 @@ class _BarangayBorrowAppState extends State<BarangayBorrowApp> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final appearance = context.watch<AppearanceProvider>();
 
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: appearance.mode,
+      themeAnimationDuration: const Duration(milliseconds: 300),
+      themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: _router,
       builder: (context, child) {
         // The splash owns the screen until both its own timer and the session
         // restore are done, so the login page never flashes on a warm start.
-        if (!_splashDone || auth.initialising) {
-          return SplashScreen(
-            onFinished: () {
-              if (mounted) setState(() => _splashDone = true);
-            },
-          );
-        }
-        return child ?? const SizedBox.shrink();
+        final showSplash = !_splashDone || auth.initialising;
+        final reduceMotion =
+            MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+        return AnimatedSwitcher(
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 460),
+          reverseDuration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 300),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            fit: StackFit.expand,
+            children: [
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
+          ),
+          transitionBuilder: (child, animation) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return FadeTransition(
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+                child: child,
+              ),
+            );
+          },
+          child: showSplash
+              ? SplashScreen(
+                  key: const ValueKey('splash'),
+                  onFinished: () {
+                    if (mounted) setState(() => _splashDone = true);
+                  },
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('app'),
+                  child: child ?? const SizedBox.shrink(),
+                ),
+        );
       },
     );
   }

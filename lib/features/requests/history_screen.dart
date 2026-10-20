@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 import '../../core/widgets/request_card.dart';
 import '../../data/models/borrow_request.dart';
 import '../../data/repositories/borrow_repository.dart';
@@ -161,10 +162,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final request = visible[index];
-        return RequestCard(
-          request: request,
-          showRequester: isOfficial,
-          onTap: () => context.push('/requests/${request.id}'),
+        return AnimatedEntrance(
+          key: ValueKey(request.id),
+          delay: Motion.stagger(index),
+          child: RequestCard(
+            request: request,
+            showRequester: isOfficial,
+            onTap: () => context.push('/requests/${request.id}'),
+          ),
         );
       },
     );

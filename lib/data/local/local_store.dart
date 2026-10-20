@@ -86,6 +86,12 @@ class LocalStore {
   void _ensureShape() {
     _data['version'] ??= schemaVersion;
     _data['session_user_id'] ??= null;
+    final settings = _data['settings'];
+    if (settings is! Map<String, dynamic>) {
+      _data['settings'] = settings is Map
+          ? Map<String, dynamic>.from(settings)
+          : <String, dynamic>{};
+    }
     for (final table in _tables) {
       final value = _data[table];
       if (value is! List) {
@@ -155,6 +161,25 @@ class LocalStore {
   String? get sessionUserId => _data['session_user_id'] as String?;
 
   Map<String, dynamic>? get currentProfile => profileById(sessionUserId);
+
+  /// Small, non-relational preferences (currently the chosen appearance).
+  Map<String, dynamic> get settings {
+    final value = _data['settings'];
+    if (value is Map<String, dynamic>) return value;
+    final fresh = <String, dynamic>{};
+    _data['settings'] = fresh;
+    return fresh;
+  }
+
+  String? get themeModeValue {
+    final value = settings['theme_mode'];
+    return value is String ? value : null;
+  }
+
+  Future<void> setThemeModeValue(String value) {
+    settings['theme_mode'] = value;
+    return save();
+  }
 
   Future<void> setSession(String? userId) {
     _data['session_user_id'] = userId;

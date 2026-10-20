@@ -6,6 +6,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/asset_card.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 import '../../data/models/dashboard_summary.dart';
 import '../../data/repositories/report_repository.dart';
 import '../../state/auth_provider.dart';
@@ -199,7 +200,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
       childAspectRatio: 1.2,
-      children: tiles,
+      children: [
+        for (var i = 0; i < tiles.length; i++)
+          AnimatedEntrance(
+            key: ValueKey('report-stat-$i'),
+            delay: Motion.stagger(i, stepMs: 45),
+            offset: const Offset(0, 0.07),
+            child: tiles[i],
+          ),
+      ],
     );
   }
 }

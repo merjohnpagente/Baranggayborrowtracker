@@ -7,6 +7,7 @@ import '../../state/auth_provider.dart';
 import '../../state/requests_provider.dart';
 import '../../core/widgets/common.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/motion.dart';
 import '../../core/widgets/request_card.dart';
 
 class MyRequestsScreen extends StatefulWidget {
@@ -115,9 +116,14 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final request = requests[index];
-                      return RequestCard(
-                        request: request,
-                        onTap: () => context.push('/requests/${request.id}'),
+                      return AnimatedEntrance(
+                        key: ValueKey(request.id),
+                        delay: Motion.stagger(index),
+                        child: RequestCard(
+                          request: request,
+                          onTap: () =>
+                              context.push('/requests/${request.id}'),
+                        ),
                       );
                     },
                   ),

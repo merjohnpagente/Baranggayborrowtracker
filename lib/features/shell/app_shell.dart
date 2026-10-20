@@ -2,14 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/widgets/motion.dart';
 import '../../state/auth_provider.dart';
 
 /// Bottom navigation wrapper. The `approvals` tab only appears for barangay
 /// officials and administrators.
-class AppShell extends StatelessWidget {
+///
+/// The shell is stateful so switching tabs can cross-fade the outgoing branch
+/// into the incoming one. The branch itself stays alive inside
+/// [StatefulNavigationShell]'s indexed stack, so scroll positions and form
+/// state are not lost.
+class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+  int? _lastBranch;
+  bool _reduceMotion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 230),
+      value: 1,
+    );
+    final curved = CurvedAnimation(
+      parent: _motion,
+      curve: Curves.easeOutCubic,
+    );
+    _fade = Tween<double>(begin: 0.55, end: 1).animate(curved);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.015),
+      end: Offset.zero,
+    ).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  void _animateBranchChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_reduceMotion) {
+        _motion.value = 1;
+      } else {
+        _motion.forward(from: 0);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,17 +77,31 @@ class AppShell extends StatelessWidget {
       if (isOfficial)
         const _Destination('/approvals', Icons.fact_check_outlined,
             Icons.fact_check_rounded, 'Approvals'),
-      const _Destination(
-          '/profile', Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
+      const _Destination('/profile', Icons.person_outline_rounded,
+          Icons.person_rounded, 'Profile'),
     ];
 
     // Indexes shift by one when the approvals tab is hidden.
     final visibleCount = destinations.length;
-    final rawIndex = navigationShell.currentIndex;
+    final rawIndex = widget.navigationShell.currentIndex;
     final index = rawIndex >= visibleCount ? rawIndex - 1 : rawIndex;
 
+    _reduceMotion = Motion.reduced(context);
+    if (_lastBranch == null) {
+      _lastBranch = rawIndex;
+    } else if (_lastBranch != rawIndex) {
+      _lastBranch = rawIndex;
+      _animateBranchChange();
+    }
+
     return Scaffold(
-      body: navigationShell,
+      body: FadeTransition(
+        opacity: _fade,
+        child: SlideTransition(
+          position: _slide,
+          child: widget.navigationShell,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) {
@@ -44,9 +112,9 @@ class AppShell extends StatelessWidget {
           final branchIndex = isOfficial
               ? value
               : (value >= 3 ? value + 1 : value);
-          navigationShell.goBranch(
+          widget.navigationShell.goBranch(
             branchIndex,
-            initialLocation: branchIndex == navigationShell.currentIndex,
+            initialLocation: branchIndex == widget.navigationShell.currentIndex,
           );
         },
         destinations: [

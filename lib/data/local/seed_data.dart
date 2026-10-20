@@ -425,6 +425,7 @@ Map<String, dynamic> seedDatabase() {
   return {
     'version': 1,
     'session_user_id': null,
+    'settings': <String, dynamic>{'theme_mode': 'system'},
     'profiles': profiles,
     'assets': assets,
     'bookings': bookings,
