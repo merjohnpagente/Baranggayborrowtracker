@@ -145,7 +145,8 @@ speaker stack for the sound system). They are **not** photographs of a real
 barangay — replace them with approved local pictures before any public release.
 
 Attribution and licences are in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md);
-CC BY / CC BY-SA require that file to ship with the app.
+CC BY / CC BY-SA require that file to travel with the pictures, so it is
+bundled into the APK as well as kept in the repository.
 
 Icons in `assets/icons/` are original SVGs authored for this project.
 

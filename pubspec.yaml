@@ -45,6 +45,9 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    # CC BY / CC BY-SA require the attribution to travel with the pictures, so
+    # the credits are bundled into the APK rather than living only in the repo.
+    - assets/ATTRIBUTION.md
 
 # Launcher icon.
 #
