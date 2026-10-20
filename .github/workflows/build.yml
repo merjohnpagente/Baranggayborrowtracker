@@ -8,14 +8,17 @@ name: Build Android APK
 # No Flutter SDK needed locally: everything runs here. `android/` is
 # git-ignored, so it is generated in the cloud and the launcher icons are
 # rendered from assets/icon/app_icon_1024.png on each build.
+#
+# This is a prototype: the APK is published only as a workflow artifact.
+# The workflow deliberately creates no GitHub release and no "Latest" tag.
 on:
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
+# Read-only: building and uploading an artifact needs no write access.
 permissions:
-  contents: write
+  contents: read
 
 # The app keeps everything on the device. The only build-time setting left is
 # the barangay name shown on screen; no database credentials are needed.
@@ -156,10 +159,3 @@ jobs:
           name: barangay-borrow-tracker-apk
           path: Barangay-Borrow-Tracker.apk
           retention-days: 30
-
-      - name: Attach APK to release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            Barangay-Borrow-Tracker.apk

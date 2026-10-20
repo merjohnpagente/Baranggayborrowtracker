@@ -22,8 +22,10 @@ You do **not** need Flutter installed. GitHub Actions builds the APK.
 4. Open the run and download the artifact **`barangay-borrow-tracker-apk`**.
 5. Unzip it, copy the `.apk` to the phone and install it. Android will ask you
    to allow installs from this source.
-6. If the run was triggered by a `v*` tag, the same APK is also attached to the
-   GitHub release.
+
+The APK is a prototype build and is available **only from the Actions
+artifact**. This repository does not publish GitHub releases or a “Latest”
+release.
 
 The pipeline runs `flutter analyze` and `flutter test` **before** it builds, so
 an APK is never produced from code that failed analysis or tests. The build is
