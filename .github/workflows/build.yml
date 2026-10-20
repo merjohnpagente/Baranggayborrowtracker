@@ -144,7 +144,7 @@ jobs:
       # Phones only: 64-bit ARM for anything modern, 32-bit ARM for old
       # handsets. x86_64 is left out on purpose — it exists only on emulators,
       # so including it would bloat the APK without helping a single phone.
-      - name: Build release APK (phones: arm64 + arm)
+      - name: Build release APK for phones
         run: |
           flutter build apk --release \
             --target-platform android-arm64,android-arm \
