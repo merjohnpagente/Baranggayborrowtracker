@@ -56,16 +56,16 @@ class AuthProvider extends ChangeNotifier {
     String? purok,
   }) async {
     return _guard(() async {
-      final result = await _repository.signUp(
+      await _repository.signUp(
         fullName: fullName,
         email: email,
         password: password,
         phone: phone,
         purok: purok,
       );
-      // Local accounts are active immediately: there is no email to confirm
-      // and no server-side administrator to wait for.
-      _profile = result.profile;
+      // Registration only creates the account. Keep the session signed out so
+      // the router stays on the login page and the resident signs in with the
+      // password they just chose.
       return true;
     });
   }

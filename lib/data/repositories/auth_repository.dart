@@ -104,11 +104,11 @@ class AuthRepository {
     };
 
     _store.profiles.add(row);
-    // One write: adding the profile and opening the session share the file.
-    await _store.setSession(id);
+    // Registration deliberately does not open a session. The new resident
+    // lands on the login page and signs in with the password they just chose.
+    await _store.save();
 
-    _cache = UserProfile.fromMap(row);
-    return AuthResult(profile: _cache!);
+    return AuthResult(profile: UserProfile.fromMap(row));
   }
 
   Future<void> signOut() async {
@@ -175,9 +175,11 @@ class AuthRepository {
 
   Future<List<UserProfile>> listUsers() async {
     final rows = [..._store.profiles]
-      ..sort((a, b) => ((a['full_name'] as String?) ?? '')
-          .toLowerCase()
-          .compareTo(((b['full_name'] as String?) ?? '').toLowerCase()));
+      ..sort(
+        (a, b) => ((a['full_name'] as String?) ?? '').toLowerCase().compareTo(
+          ((b['full_name'] as String?) ?? '').toLowerCase(),
+        ),
+      );
     return rows.map(UserProfile.fromMap).toList();
   }
 

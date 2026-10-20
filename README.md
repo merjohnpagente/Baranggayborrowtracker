@@ -49,9 +49,11 @@ They are ordinary local accounts with the same permissions as accounts created
 in the app. **Change the admin password after installing** — Profile → Settings
 → Change password.
 
-New residents can register from the login screen. Local sign-ups are active
-immediately and are always residents; only an admin can promote an account to
-staff, approver or admin via **Profile → Manage users**.
+New residents can register from the login screen. Registration creates the
+account and returns to the login page with the email filled in; sign in there
+with the password that was just chosen. Local sign-ups are active immediately
+and are always residents; only an admin can promote an account to staff,
+approver or admin via **Profile → Manage users**.
 
 ### Resetting the demo
 
