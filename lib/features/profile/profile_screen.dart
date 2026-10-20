@@ -110,6 +110,13 @@ class ProfileScreen extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => context.push('/notifications'),
                 ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  subtitle: const Text('Version, developer and support'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/settings'),
+                ),
                 if (auth.isAdmin)
                   ListTile(
                     leading: const Icon(Icons.people_alt_outlined),

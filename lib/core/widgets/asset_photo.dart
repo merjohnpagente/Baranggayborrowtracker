@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../app_assets.dart';
@@ -6,14 +8,15 @@ import '../app_assets.dart';
 ///
 /// Three sources, in order:
 ///
-/// 1. the record's own `image_url` (a Supabase Storage URL, if uploaded);
+/// 1. the record's own `image_url` — a file path saved by the asset form, or
+///    an old http URL from the Supabase era;
 /// 2. the bundled photograph chosen by asset code, so the catalogue is never a
 ///    wall of grey placeholders;
 /// 3. the category icon.
 ///
 /// Every branch has an error builder. A bundled asset is compiled into the
-/// APK, so it cannot 404 — but a *remote* URL can, and an unhandled image
-/// error paints a red box in release builds.
+/// APK, so it cannot 404 — but a local file can be deleted and a remote URL
+/// can fail, and an unhandled image error paints a red box in release builds.
 class AssetPhoto extends StatelessWidget {
   const AssetPhoto({
     super.key,
@@ -55,20 +58,39 @@ class AssetPhoto extends StatelessWidget {
       ),
     );
 
-    final remote = imageUrl;
-    if (remote != null && remote.startsWith('http') && remote.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Image.network(
-          remote,
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => placeholder,
-          loadingBuilder: (context, child, progress) =>
-              progress == null ? child : placeholder,
-        ),
-      );
+    final source = imageUrl;
+    if (source != null && source.isNotEmpty) {
+      if (source.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: Image.network(
+            source,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => placeholder,
+            loadingBuilder: (context, child, progress) =>
+                progress == null ? child : placeholder,
+          ),
+        );
+      }
+
+      // A photo picked in the app: stored as a file in the private documents
+      // folder. `existsSync` is cheap and keeps a deleted file from throwing
+      // during layout.
+      final file = File(source);
+      if (file.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: Image.file(
+            file,
+            width: width,
+            height: height,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => placeholder,
+          ),
+        );
+      }
     }
 
     final bundled = assetCode == null

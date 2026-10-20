@@ -4,93 +4,183 @@ An Android app for managing barangay-owned assets — vehicles, courts, halls,
 sound systems, furniture, tents, projectors and generators — from request
 through approval, release, return and reporting.
 
-Built with Flutter, backed by Supabase (Postgres + Auth + Storage).
+**The app runs entirely offline.** Accounts, assets, bookings, notifications and
+photos are stored on the phone. There is no Supabase project, no database
+server, no login API and no internet requirement. Install the APK, and it works.
+
+Built with Flutter and Material 3 by **Merjohn Pagente (MerjDev)**.
 
 ---
 
-## Build the APK (no local Flutter SDK needed)
+## Download and install the APK
 
-You do **not** need Flutter installed. GitHub Actions builds the APK for you.
+You do **not** need Flutter installed. GitHub Actions builds the APK.
 
-1. Push this repository to GitHub (branch `main`).
-2. Open the repo → **Actions** → **Build Android APK** → **Run workflow**.
-3. Wait for the run to finish (green).
-4. At the bottom of the run page, download the artifact
-   **`barangay-borrow-tracker-apk`**.
-5. Unzip it on your phone and install the `.apk`
-   (Android will ask you to allow installs from this source).
+1. Open the repository's **Actions** tab → **Build Android APK**.
+2. Either wait for the run triggered by the latest push, or use **Run workflow**.
+3. Wait for the run to finish green.
+4. Open the run and download the artifact **`barangay-borrow-tracker-apk`**.
+5. Unzip it, copy the `.apk` to the phone and install it. Android will ask you
+   to allow installs from this source.
+6. If the run was triggered by a `v*` tag, the same APK is also attached to the
+   GitHub release.
 
-The workflow runs `flutter analyze` and `flutter test` **before** it builds, so
-a run that produces an APK has already passed both. A failing test fails the
-build — the APK is never produced from broken code.
-
-### Optional: configure Supabase at build time
-
-The app builds and runs without any configuration, showing a *Setup required*
-screen that explains what to do. To point it at a real database, add these as
-repository **Settings → Secrets and variables → Actions → Variables**:
-
-| Variable | Meaning |
-| --- | --- |
-| `SUPABASE_URL` | Project URL, e.g. `https://abc123.supabase.co` |
-| `SUPABASE_ANON_KEY` | The **anon / publishable** key |
-| `BARANGAY_NAME` | Optional display name, e.g. `Barangay San Isidro` |
-
-They are read by the workflow as repo *variables* (`vars.*`) and passed to
-`flutter build --dart-define=…`. Do **not** commit them.
-
-> The anon key is safe to ship in a client — Row Level Security in Postgres is
-> what actually protects the data. Never put the `service_role` key in the app.
+The pipeline runs `flutter analyze` and `flutter test` **before** it builds, so
+an APK is never produced from code that failed analysis or tests. The build is
+phones-only: one APK contains 64-bit and 32-bit ARM binaries. Emulator x86
+binaries are deliberately excluded.
 
 ---
 
-## Database setup
+## First launch
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor** and run `supabase/schema.sql` (one transaction, safe to
-   re-run).
-3. Optionally run `supabase/seed_demo.sql` for sample assets.
-4. Create the first administrator — see below.
+The first run creates a demo catalogue and three accounts, so the app is usable
+immediately:
 
-`schema.sql` is the security boundary. It defines the tables, the enums, the
-indexes, **26 row-level-security policies**, the audit-log trigger, and the
-functions that make approval safe:
+| Role     | Email                    | Password      |
+| -------- | ------------------------ | ------------- |
+| Admin    | `admin@barangay.local`   | `admin123`    |
+| Staff    | `staff@barangay.local`   | `staff123`    |
+| Resident | `resident@barangay.local`| `resident123` |
 
-| Function | Why it exists |
-| --- | --- |
-| `approve_booking` | Takes a row lock (`SELECT … FOR UPDATE`) and **re-checks** for overlapping approved bookings *inside the transaction*, so two approvers tapping Approve a second apart cannot both win. |
-| `reject_booking` | Same lock discipline. |
-| `release_asset` | Moves booking + asset + transaction row together, or not at all. |
-| `return_asset` | Closes the transaction and flags it for inspection when damage is reported. |
-| `dashboard_summary` | Every dashboard number is computed from real rows. |
-| `mark_overdue_bookings` | Sweeps due dates into `overdue`. |
+They are ordinary local accounts with the same permissions as accounts created
+in the app. **Change the admin password after installing** — Profile → Settings
+→ Change password.
 
-A `btree_gist` exclusion constraint additionally forbids overlapping *confirmed*
-bookings for the same asset at the database level:
+New residents can register from the login screen. Local sign-ups are active
+immediately and are always residents; only an admin can promote an account to
+staff, approver or admin via **Profile → Manage users**.
 
-```sql
-exclude using gist (asset_id with =, tstzrange(start_time, end_time, '[)') with &&)
-  where (status in ('approved','released','overdue'))
+### Resetting the demo
+
+Clearing the app's data (Android Settings → Apps → Barangay Borrow Tracker →
+Storage → Clear data) or uninstalling the app removes the database and photos.
+The next launch seeds a fresh demo. There is no cloud copy to restore from.
+
+---
+
+## How data is stored
+
+```
+<app documents folder>/barangay_borrow_tracker/database.json
+<app documents folder>/barangay_borrow_tracker/photos/…
 ```
 
-It is half-open (`[)`), so a booking that ends at 5:00 PM and one that starts at
-5:00 PM do **not** conflict — back-to-back slots stay bookable.
+* One JSON file holds profiles, assets, bookings, custody records and
+  notifications. Writes go to a temporary file and are renamed into place, so a
+  crash cannot leave a half-written database.
+* Asset photos are copied out of the image picker into `photos/`. The asset row
+  stores the file path, not a base64 blob.
+* Passwords are never stored in clear text: each account has a random salt and
+  a SHA-256 hash of `salt:password`.
+* The seeded photographs in `assets/images/` are bundled into the APK and used
+  when an asset has no photo of its own.
 
-### Creating the first administrator
+This is a single-device app: two phones do not share a database. There is no
+sync, no cloud backup and no server-side recovery. Keep the phone safe, and use
+Android's own data backup tools if your device supports them.
 
-Sign up normally in the app (every new account is created as a `resident` with
-`pending` status — the trigger in `schema.sql` enforces this, so public
-registration cannot grant privileges). Then, in the Supabase SQL editor, using
-the user's id from **Authentication → Users**:
+---
 
-```sql
-update public.profiles
-   set role = 'admin', account_status = 'active'
- where id = '<the-user-uuid>';
+## Roles
+
+| Role         | Can do |
+| ------------ | ------ |
+| **Resident** | Browse the catalogue, request an asset, withdraw a request, see own history |
+| **Staff**    | Everything a resident can do, plus release and receive assets, view all requests and reports |
+| **Approver** | Everything a resident can do, plus approve or reject requests, view all requests and reports |
+| **Admin**    | Everything staff and approvers can do, plus add/edit/archive assets and manage user roles |
+
+Hiding a button is not the security boundary. The repositories check the signed-in
+role before every workflow action, so a stale screen cannot approve a request
+after the account's role changes.
+
+---
+
+## Request workflow
+
+```
+pending ──approve──▶ approved ──release──▶ released ──return──▶ completed
+   │                    │                      │
+   ├──reject──▶ rejected│                      └──past due──▶ overdue ──return──▶ completed
+   └──cancel──▶ cancelled
+                        └──cancel──▶ cancelled
 ```
 
-This has to be a separate step by design: the signup path is never allowed to
-set a role.
+* **No overlapping approved bookings.** A window is half-open `[start, end)`, so
+  back-to-back bookings are allowed. Availability checks confirmed bookings
+  (`approved`, `released`, `overdue`) and is run again at approval time, not
+  just when the request form is filled in.
+* **Approval and rejection** are limited to admins and approvers. A rejection
+  requires a reason.
+* **Release and return** are limited to admins and staff. Returning an asset
+  records its condition, missing items and optional notes, and updates the asset
+  condition.
+* **Overdue** items are swept when requests are refreshed; the borrower gets an
+  in-app notification.
+* New requests notify active admins/approvers (never the applicant), and the
+  applicant gets a “Request received” acknowledgement.
+* Archived assets keep their borrowing history but can no longer be requested.
+  Nothing is hard-deleted.
+
+All of these rules live in `lib/data/repositories/borrow_repository.dart` and
+`lib/data/local/local_store.dart`.
+
+---
+
+## QR codes
+
+* **Asset QR** — generated from the asset detail screen; scanning it opens that
+  asset. The resolver also accepts the human-readable asset code, so a typed
+  code works too.
+* **Request QR** — generated from a request's detail screen; scanning it opens
+  that request.
+* The scanner uses the phone camera. Camera permission is declared as optional,
+  so the app still installs on a device without one.
+
+QR payloads are self-contained (`BBT|asset|<id>`), which is why scanning still
+works with no network.
+
+---
+
+## Settings and credits
+
+Open **Profile → Settings**:
+
+* **Version** — read from the installed build via `package_info_plus`, with a
+  copy button.
+* **Developer** — Merjohn Pagente, developed by MerjDev.
+* **GitHub** — [github.com/merjohnpagente](https://github.com/merjohnpagente),
+  opens in the browser.
+* **Buy me a coffee** — GCash **0915 043 5696**; tapping copies the number for a
+  broke developer. Thank you.
+* **Storage** — a reminder that nothing leaves the phone.
+
+The splash screen also credits **By MerjDev**.
+
+---
+
+## Build from source
+
+The supported route is CI because no local Flutter SDK is required. To build
+locally with Flutter stable and Java 17:
+
+```bash
+flutter pub get
+flutter analyze --no-fatal-infos
+flutter test
+flutter build apk --release \
+  --target-platform android-arm64,android-arm \
+  --dart-define=BARANGAY_NAME="Your Barangay"
+```
+
+The APK is at `build/app/outputs/flutter-apk/app-release.apk`.
+
+`android/` is git-ignored and generated by the workflow with `flutter create`;
+the launcher icons are then regenerated from
+`assets/icon/app_icon_1024.png`. Set the optional GitHub repository variable
+**`BARANGAY_NAME`** to change the barangay name shown in the app. No database
+credentials or secrets are needed.
 
 ---
 
@@ -98,67 +188,57 @@ set a role.
 
 ```
 lib/
-  main.dart                  app entry, Supabase init, provider wiring
+  main.dart                  app entry, local store bootstrap, provider wiring
   core/
-    app_assets.dart          every bundled image/icon path, in one place
-    config/app_config.dart   build-time configuration (--dart-define)
-    theme/app_theme.dart     Material 3 light + dark
-    utils/                   formatters, validators, QR payload encoding
-    widgets/                 shared cards, chips, empty states, photos
+    config/app_config.dart   app name, barangay name, developer/support details
+    theme/                   Material 3 palette and component styling
+    utils/                   formatters, validators, QR payload, app version
+    widgets/                 shared cards, photos, chips, empty/loading states
   data/
-    models/                  Asset, BorrowRequest, UserProfile, NotificationItem,
-                             DashboardSummary, AssetCategory
-    repositories/            Supabase reads and writes
-    supabase_service.dart    client bootstrap + error translation
-  features/
-    auth/                    login, register, forgot password
-    dashboard/  assets/      inventory, detail, add/edit
-    requests/  approvals/    request form, my requests, history
-    notifications/           in-app inbox fed by database triggers
-    reports/                 live operational summary for officials
-    qr/                      scanner and code display
-    profile/                 profile and user management
-    setup/                   "not configured" + splash
-    shell/                   bottom navigation
-  routes/app_router.dart     go_router configuration
-  state/                     ChangeNotifier providers (provider package)
-supabase/
-  schema.sql                 tables, enums, RLS, functions, triggers
-  seed_demo.sql              optional sample data
-test/                        model and rule tests
+    local/                   JSON store, seed data, ids, password hashing
+    models/                  assets, bookings, profiles, notifications, reports
+    repositories/            local auth, assets, borrowing, notifications, reports
+  state/                     Provider change notifiers
+  features/                  auth, dashboard, assets, requests, approvals,
+                             reports, notifications, profile, settings, splash, QR
 assets/
-  images/                    placeholder photographs (see ATTRIBUTION.md)
-  icons/                     original vector artwork
+  images/                    bundled demo photographs
+  ATTRIBUTION.md             photo credits (also bundled into the APK)
+test/                        model and utility tests
 ```
 
-State management is `provider` + `ChangeNotifier`. Permissions are **not**
-enforced by hiding buttons: the same role checks exist in the RLS policies, and
-approval/release/return go through Postgres functions.
+No code path calls an external service. The old Supabase client, SQL schema and
+setup screen have been removed.
 
 ---
 
-## Images
+## Tests
 
-Photographs in `assets/images/` are placeholders from Wikimedia Commons, chosen
-so each asset shows its actual subject (a pickup for the service vehicle, a PA
-speaker stack for the sound system). They are **not** photographs of a real
-barangay — replace them with approved local pictures before any public release.
+```bash
+flutter analyze --no-fatal-infos
+flutter test
+```
 
-Attribution and licences are in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md);
-CC BY / CC BY-SA require that file to travel with the pictures, so it is
-bundled into the APK as well as kept in the repository.
-
-Icons in `assets/icons/` are original SVGs authored for this project.
+`flutter test` covers the model parsing and business-rule getters (status
+transitions, availability rules, request length, notification handling) plus the
+formatters, validators and QR payload parser. The test job in GitHub Actions
+gates the APK build.
 
 ---
 
-## Known gaps
+## Photo credits
 
-- Push notifications are not wired up. The in-app inbox records every event
-  the database writes (submission, approval, rejection, return, overdue), but
-  it does not ring the phone when the app is closed.
-- Reports show the live operational summary from `dashboard_summary()`. There
-  is no PDF/CSV export yet.
-- No automated tests exercise the Supabase functions themselves; the SQL was
-  verified separately against a real PostgreSQL 17 instance. The Dart tests
-  cover the model parsing and the business rules mirrored in the client.
+The bundled photographs are Creative Commons images from Wikimedia Commons.
+Their licences and source links are in
+[`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md), which is also packaged into the
+APK so the attribution travels with the pictures. Replace a bundled photo by
+adding a real photo to the asset in the app; the uploaded image takes priority.
+
+---
+
+## Developer
+
+**Merjohn Pagente** · [github.com/merjohnpagente](https://github.com/merjohnpagente)
+
+If this app saved you some paperwork, you can buy the developer a coffee on
+GCash: **0915 043 5696**.

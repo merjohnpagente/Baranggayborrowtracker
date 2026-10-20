@@ -17,14 +17,9 @@ on:
 permissions:
   contents: write
 
-# Supabase settings are read from repository *variables* (Settings → Secrets and
-# variables → Actions → Variables), not secrets: the anon/publishable key is
-# designed to ship inside a client app, and the real protection is Row Level
-# Security in Postgres. Leaving these blank simply builds the app in
-# "setup required" mode, which is a valid way to review it.
+# The app keeps everything on the device. The only build-time setting left is
+# the barangay name shown on screen; no database credentials are needed.
 env:
-  SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-  SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
   BARANGAY_NAME: ${{ vars.BARANGAY_NAME }}
 
 jobs:
@@ -148,8 +143,6 @@ jobs:
         run: |
           flutter build apk --release \
             --target-platform android-arm64,android-arm \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=BARANGAY_NAME="$BARANGAY_NAME"
 
       # Named for what it is, so the download is recognisable in the artifacts

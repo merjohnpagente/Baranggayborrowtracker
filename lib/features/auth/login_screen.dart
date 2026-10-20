@@ -141,14 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? 'Password is required'
                               : null,
                     ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => context.push('/forgot-password'),
-                        child: const Text('Forgot password?'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     FilledButton(
                       onPressed: auth.busy ? null : _submit,
                       child: auth.busy
@@ -203,8 +196,9 @@ class _HelpCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'New residents can register here. Barangay official and admin '
-              'accounts are activated by the barangay administrator.',
+              'Everything is stored on this phone — no internet needed.\n'
+              'First run? Sign in as admin@barangay.local / admin123, then '
+              'change the password in Settings.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

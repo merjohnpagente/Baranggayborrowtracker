@@ -1,22 +1,19 @@
 import 'dart:typed_data';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../local/ids.dart';
+import '../local/local_store.dart';
 import '../models/asset.dart';
 import '../models/asset_category.dart';
-import '../supabase_service.dart';
 
-/// Reads and writes `assets`.
+/// Reads and writes the local `assets` list.
 ///
-/// There is no `asset_categories` table in this schema: the category is a
-/// Postgres enum on `assets.category`, so there is nothing to join and nothing
-/// to administer. [categories] returns the enum values for filter chips.
+/// Categories are an enum, not a table, so [categories] just exposes the
+/// values for the filter chips.
 class AssetRepository {
-  AssetRepository(this._client);
+  AssetRepository(this._store);
 
-  final SupabaseClient _client;
+  final LocalStore _store;
 
-  /// The categories offered in the filter chips, derived from the enum.
   List<AssetCategory> categories() => AssetCategory.values;
 
   Future<List<Asset>> fetchAssets({
@@ -26,126 +23,118 @@ class AssetRepository {
     bool onlyAvailable = false,
     bool includeArchived = false,
   }) async {
-    var query = _client.from('assets').select();
+    final term = search?.trim().toLowerCase() ?? '';
 
-    // Archived rows are filtered in the query rather than in Dart so the list
-    // never paints an item and then removes it a frame later.
-    if (!includeArchived) {
-      query = query.isFilter('archived_at', null);
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      final term = search.trim();
-      query = query.or('name.ilike.%$term%,asset_code.ilike.%$term%');
-    }
-    if (category != null) {
-      query = query.eq('category', category.value);
-    }
-    if (status != null) {
-      query = query.eq('status', status.value);
-    } else if (onlyAvailable) {
-      query = query.eq('status', AssetStatus.available.value);
-    }
+    final rows = _store.assets.where((row) {
+      if (!includeArchived && row['archived_at'] != null) return false;
+      if (category != null && row['category'] != category.value) return false;
+      if (status != null && row['status'] != status.value) return false;
+      if (status == null && onlyAvailable && row['status'] != 'available') {
+        return false;
+      }
+      if (term.isNotEmpty) {
+        final name = (row['name'] as String? ?? '').toLowerCase();
+        final code = (row['asset_code'] as String? ?? '').toLowerCase();
+        if (!name.contains(term) && !code.contains(term)) return false;
+      }
+      return true;
+    }).toList()
+      ..sort((a, b) => ((a['name'] as String?) ?? '')
+          .toLowerCase()
+          .compareTo(((b['name'] as String?) ?? '').toLowerCase()));
 
-    final data = await query.order('name', ascending: true);
-    return _rows(data).map(Asset.fromMap).toList();
+    return rows.map(Asset.fromMap).toList();
   }
 
   Future<Asset?> fetchAsset(String id) async {
-    final data =
-        await _client.from('assets').select().eq('id', id).maybeSingle();
-    return data == null ? null : Asset.fromMap(data);
+    final row = _store.assetById(id);
+    return row == null ? null : Asset.fromMap(row);
   }
 
   /// Resolves a scanned QR payload to an asset.
   ///
-  /// Both the QR column and the human-typed asset code are tried, because a
-  /// printed label and a typed code are both things a user will scan or type.
+  /// The generated asset QR contains the record id, while a printed label or a
+  /// typed-in code is the human-readable asset code. All three are tried.
   /// Returns null rather than throwing: an unrecognised code is a normal
   /// outcome, not an error.
   Future<Asset?> findByCodeOrQr(String raw) async {
     final value = raw.trim();
     if (value.isEmpty) return null;
+    final upper = value.toUpperCase();
 
-    final data = await _client
-        .from('assets')
-        .select()
-        .or('qr_code_value.eq.$value,asset_code.eq.${value.toUpperCase()}')
-        .isFilter('archived_at', null)
-        .limit(1);
-
-    final rows = _rows(data);
-    return rows.isEmpty ? null : Asset.fromMap(rows.first);
+    for (final row in _store.assets) {
+      if (row['archived_at'] != null) continue;
+      final qr = (row['qr_code_value'] as String?)?.trim();
+      final code = (row['asset_code'] as String?)?.trim();
+      if (row['id'] == value ||
+          qr == value ||
+          code == value ||
+          code?.toUpperCase() == upper) {
+        return Asset.fromMap(row);
+      }
+    }
+    return null;
   }
 
   Future<Asset> createAsset(Asset asset) async {
-    final response =
-        await _client.from('assets').insert(asset.toInsert()).select().single();
-    return Asset.fromMap(response);
+    final row = <String, dynamic>{
+      ...asset.toInsert(),
+      'id': newLocalId(),
+      'archived_at': null,
+      'created_at': _store.nowIso(),
+      'updated_at': _store.nowIso(),
+    };
+    _store.assets.add(row);
+    await _store.save();
+    return Asset.fromMap(row);
   }
 
   Future<Asset> updateAsset(String id, Asset asset) async {
-    final response = await _client
-        .from('assets')
-        .update(asset.toUpdate())
-        .eq('id', id)
-        .select()
-        .single();
-    return Asset.fromMap(response);
+    final row = _store.assetById(id);
+    if (row == null) {
+      throw const AssetException('That asset could not be found.');
+    }
+    row.addAll(asset.toUpdate());
+    row['updated_at'] = _store.nowIso();
+    await _store.save();
+    return Asset.fromMap(row);
   }
 
-  /// Soft delete.
-  ///
-  /// Assets are never hard-deleted: `bookings.asset_id` is ON DELETE RESTRICT
-  /// precisely because an asset that has been borrowed has history worth
-  /// keeping. Archiving takes it out of circulation while leaving the reports
-  /// reconciling.
+  /// Soft delete: the row (and its borrowing history) stays.
   Future<void> archiveAsset(String id) async {
-    await _client
-        .from('assets')
-        .update({'archived_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('id', id);
+    final row = _store.assetById(id);
+    if (row == null) return;
+    row['archived_at'] = _store.nowIso();
+    await _store.save();
   }
 
   Future<void> unarchiveAsset(String id) async {
-    await _client.from('assets').update({'archived_at': null}).eq('id', id);
+    final row = _store.assetById(id);
+    if (row == null) return;
+    row['archived_at'] = null;
+    await _store.save();
   }
 
   Future<void> setAssetStatus(String id, AssetStatus status) async {
-    await _client.from('assets').update({'status': status.value}).eq('id', id);
+    final row = _store.assetById(id);
+    if (row == null) return;
+    row['status'] = status.value;
+    row['updated_at'] = _store.nowIso();
+    await _store.save();
   }
 
-  /// Whether an asset is free for a given window.
-  ///
-  /// Delegates to `check_asset_availability`, which is the same function the
-  /// approval path uses — so the "is this slot free?" answer shown in the form
-  /// cannot disagree with the one the approver gets.
+  /// Whether the asset is free for the half-open window `[start, end)`.
   Future<bool> isAvailableFor({
     required String assetId,
     required DateTime start,
     required DateTime end,
   }) async {
-    final result = await _client.rpc(
-      'check_asset_availability',
-      params: {
-        'p_asset_id': assetId,
-        'p_start': start.toUtc().toIso8601String(),
-        'p_end': end.toUtc().toIso8601String(),
-      },
-    );
-    return result == true;
+    return _store.isAssetAvailable(assetId, start, end);
   }
 
-  /// Uploads a photo to the public bucket and returns its URL.
-  Future<String> uploadPhoto(Uint8List bytes, String fileName) async {
-    final path = 'assets/${DateTime.now().millisecondsSinceEpoch}_$fileName';
-    await _client.storage
-        .from(SupabaseService.photoBucket)
-        .uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(contentType: 'image/jpeg'),
-        );
-    return _client.storage.from(SupabaseService.photoBucket).getPublicUrl(path);
+  /// Writes a picked image into the app's private photo folder.
+  Future<String> savePhoto(Uint8List bytes, String fileName) {
+    return _store.savePhoto(bytes, fileName);
   }
 
   /// Counts by status for the dashboard's filter summary.
@@ -165,17 +154,13 @@ class AssetRepository {
     }
     return counts;
   }
+}
 
-  /// PostgREST `select()` is typed `dynamic` and can arrive as null or as a
-  /// list of `_Map<String, Object?>`. Casting blindly is the single most common
-  /// runtime cast error in a Supabase app, so every read goes through here.
-  static List<Map<String, dynamic>> _rows(dynamic data) {
-    if (data is List) {
-      return data
-          .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
-    }
-    return const [];
-  }
+class AssetException implements Exception {
+  const AssetException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

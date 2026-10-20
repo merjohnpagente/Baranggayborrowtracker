@@ -13,8 +13,11 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Backend
-  supabase_flutter: ^2.3.4
+  # On-device storage. The app has no server: everything lives in a JSON
+  # database plus photo files inside the app's private documents folder.
+  path_provider: ^2.1.4
+  # Password hashing for the local accounts (SHA-256 + per-user salt).
+  crypto: ^3.0.3
 
   # Navigation & state
   go_router: ^14.2.7
@@ -23,6 +26,10 @@ dependencies:
   # Utilities
   intl: ^0.19.0
   image_picker: ^1.1.2
+
+  # Settings: installed version + opening the GitHub profile.
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
 
   # QR codes
   qr_flutter: ^4.1.0

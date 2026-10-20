@@ -1,51 +1,54 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../local/local_store.dart';
 import '../models/notification_item.dart';
 
-/// Reads and acknowledges `public.notifications`.
+/// Reads and acknowledges the local notification inbox.
 ///
-/// There is no insert method on purpose: notifications are written by database
-/// triggers under `SECURITY DEFINER`, and the table has no INSERT policy, so a
-/// client cannot fabricate one for somebody else.
+/// Notifications are produced by the booking workflow (submitted, approved,
+/// rejected, overdue), so they cannot be forged from a screen.
 class NotificationRepository {
-  NotificationRepository(this._client);
+  NotificationRepository(this._store);
 
-  final SupabaseClient _client;
-
-  String? get _uid => _client.auth.currentUser?.id;
+  final LocalStore _store;
 
   Future<List<NotificationItem>> fetchMine({int limit = 100}) async {
-    final uid = _uid;
+    final uid = _store.sessionUserId;
     if (uid == null) return const [];
-    final data = await _client
-        .from('notifications')
-        .select()
-        .eq('recipient_id', uid)
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return data
-        .whereType<Map>()
-        .map((row) => NotificationItem.fromMap(
-              Map<String, dynamic>.from(row),
-            ))
+
+    final rows = _store.notifications
+        .where((row) => row['recipient_id'] == uid)
+        .toList()
+      ..sort((a, b) =>
+          '${b['created_at']}'.compareTo('${a['created_at']}'));
+
+    return rows
+        .take(limit)
+        .map(NotificationItem.fromMap)
         .toList();
   }
 
   Future<void> markRead(String id) async {
-    await _client.from('notifications').update({
-      'read_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id);
+    final uid = _store.sessionUserId;
+    if (uid == null) return;
+    for (final row in _store.notifications) {
+      if (row['id'] == id && row['recipient_id'] == uid) {
+        row['read_at'] = _store.nowIso();
+        await _store.save();
+        return;
+      }
+    }
   }
 
-  /// The RLS update policy already limits this to the caller's rows; the
-  /// filter just avoids touching ones that are already read.
   Future<void> markAllRead() async {
-    final uid = _uid;
+    final uid = _store.sessionUserId;
     if (uid == null) return;
-    await _client
-        .from('notifications')
-        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('recipient_id', uid)
-        .filter('read_at', 'is', null);
+
+    final now = _store.nowIso();
+    var changed = false;
+    for (final row in _store.notifications) {
+      if (row['recipient_id'] != uid || row['read_at'] != null) continue;
+      row['read_at'] = now;
+      changed = true;
+    }
+    if (changed) await _store.save();
   }
 }

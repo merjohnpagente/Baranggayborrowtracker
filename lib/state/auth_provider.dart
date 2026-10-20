@@ -63,18 +63,9 @@ class AuthProvider extends ChangeNotifier {
         phone: phone,
         purok: purok,
       );
-      if (result.needsEmailConfirmation) {
-        // Stay signed out until the link in the inbox is used.
-        return false;
-      }
+      // Local accounts are active immediately: there is no email to confirm
+      // and no server-side administrator to wait for.
       _profile = result.profile;
-      return true;
-    });
-  }
-
-  Future<bool> sendPasswordReset(String email) async {
-    return _guard(() async {
-      await _repository.sendPasswordReset(email);
       return true;
     });
   }
@@ -104,6 +95,19 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return _guard(() async {
+      await _repository.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return true;
+    });
+  }
+
   Future<List<UserProfile>> listUsers() => _repository.listUsers();
 
   Future<void> signOut() async {
@@ -129,8 +133,7 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final result = await action();
-      return result;
+      return await action();
     } catch (error) {
       _error = _message(error);
       return false;
@@ -141,23 +144,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   String _message(Object error) {
-    final text = error.toString();
-    if (error is AuthException) return text;
-    if (text.contains('Invalid login credentials')) {
-      return 'Wrong email or password.';
-    }
-    if (text.contains('User already registered')) {
-      return 'That email is already registered. Try signing in.';
-    }
-    if (text.contains('Email not confirmed')) {
-      return 'Confirm your email address first.';
-    }
-    if (text.contains('rate limit') || text.contains('too many')) {
-      return 'Too many attempts. Please wait a minute and try again.';
-    }
-    if (text.contains('Failed host lookup') || text.contains('connection')) {
-      return 'No internet connection. Check your data and try again.';
-    }
-    return text.replaceFirst('Exception: ', '');
+    if (error is AuthException) return error.message;
+    return error.toString().replaceFirst('Exception: ', '');
   }
 }

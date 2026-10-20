@@ -1,49 +1,74 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../local/ids.dart';
+import '../local/local_store.dart';
+import '../local/password.dart';
 import '../models/user_profile.dart';
 
 class AuthResult {
-  const AuthResult({required this.profile, this.needsEmailConfirmation = false});
+  const AuthResult({required this.profile});
 
   final UserProfile profile;
-  final bool needsEmailConfirmation;
 }
 
+/// Accounts and profiles, stored entirely on this device.
+///
+/// There is no Supabase Auth, no session token and no email confirmation. The
+/// session is simply the id of the last profile that signed in, persisted in
+/// the same JSON file as everything else.
 class AuthRepository {
-  AuthRepository(this._client);
+  AuthRepository(this._store);
 
-  final SupabaseClient _client;
+  final LocalStore _store;
 
   UserProfile? _cache;
 
   UserProfile? get cachedProfile => _cache;
 
-  Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
-
   UserProfile? get currentUser => _cache;
 
-  /// Called on app start: re-attach the profile to an existing session.
+  /// Called on app start: re-attach the profile to the persisted session.
   Future<UserProfile?> restoreSession() async {
-    final session = _client.auth.currentSession;
-    if (session == null) {
+    final id = _store.sessionUserId;
+    if (id == null) {
       _cache = null;
       return null;
     }
-    return _loadProfile(session.user.id);
+    final row = _store.profileById(id);
+    if (row == null) {
+      await _store.setSession(null);
+      _cache = null;
+      return null;
+    }
+    _cache = UserProfile.fromMap(row);
+    return _cache;
   }
 
   Future<AuthResult> signIn({
     required String email,
     required String password,
   }) async {
-    final response = await _client.auth
-        .signInWithPassword(email: email.trim(), password: password);
-    final user = response.user;
-    if (user == null) {
-      throw const AuthException('Sign in failed. Please try again.');
+    final row = _store.profileByEmail(email);
+    if (row == null ||
+        !LocalPassword.verify(
+          password,
+          row['password_salt'] as String?,
+          row['password_hash'] as String?,
+        )) {
+      throw const AuthException('Wrong email or password.');
     }
-    final profile = await _loadProfile(user.id);
-    return AuthResult(profile: profile);
+
+    final status = row['account_status'] as String?;
+    if (status == 'pending') {
+      throw const AuthException(
+        'This account is waiting for the administrator to activate it.',
+      );
+    }
+    if (status == 'suspended') {
+      throw const AuthException('This account has been suspended.');
+    }
+
+    await _store.setSession(row['id'] as String);
+    _cache = UserProfile.fromMap(row);
+    return AuthResult(profile: _cache!);
   }
 
   Future<AuthResult> signUp({
@@ -53,51 +78,42 @@ class AuthRepository {
     String? phone,
     String? purok,
   }) async {
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {
-        'full_name': fullName.trim(),
-        // The names here must match `handle_new_user()` in schema.sql, which
-        // copies them out of the sign-up metadata into `profiles`.
-        if (phone != null && phone.isNotEmpty) 'phone_number': phone.trim(),
-        if (purok != null && purok.isNotEmpty) 'purok': purok.trim(),
-      },
-    );
-
-    final user = response.user;
-    if (user == null) {
-      throw const AuthException('Could not create the account.');
-    }
-
-    final session = _client.auth.currentSession;
-    if (session == null) {
-      // Email confirmation is enabled in the Supabase project.
-      return AuthResult(
-        profile: UserProfile(
-          id: user.id,
-          fullName: fullName.trim(),
-          role: UserRole.resident,
-          phone: phone,
-        ),
-        needsEmailConfirmation: true,
+    final address = email.trim();
+    if (_store.profileByEmail(address) != null) {
+      throw const AuthException(
+        'That email is already registered. Try signing in.',
       );
     }
 
-    final profile = await _loadProfile(user.id);
-    return AuthResult(profile: profile);
+    final salt = LocalPassword.newSalt();
+    final id = newLocalId();
+    final now = _store.nowIso();
+    final row = <String, dynamic>{
+      'id': id,
+      'full_name': fullName.trim(),
+      'email': address,
+      'phone_number': phone?.trim(),
+      'role': UserRole.resident.value,
+      'account_status': AccountStatus.active.value,
+      'barangay': null,
+      'purok': (purok == null || purok.trim().isEmpty) ? null : purok.trim(),
+      'created_at': now,
+      'updated_at': now,
+      'password_salt': salt,
+      'password_hash': LocalPassword.hash(password, salt),
+    };
+
+    _store.profiles.add(row);
+    // One write: adding the profile and opening the session share the file.
+    await _store.setSession(id);
+
+    _cache = UserProfile.fromMap(row);
+    return AuthResult(profile: _cache!);
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await _store.setSession(null);
     _cache = null;
-  }
-
-  Future<void> sendPasswordReset(String email) async {
-    // `redirectTo` is omitted on purpose: the Android app has no deep link
-    // handler, so Supabase sends its own reset page instead of redirecting to
-    // a URL the app cannot open.
-    await _client.auth.resetPasswordForEmail(email.trim());
   }
 
   Future<UserProfile> updateProfile({
@@ -110,84 +126,94 @@ class AuthRepository {
       throw const AuthException('You are not signed in.');
     }
 
-    // Built explicitly rather than from the model: `toSelfUpdate()` would also
-    // write `barangay`, and a stale value there should not be able to overwrite
-    // what the office set.
-    final updates = <String, dynamic>{
-      'full_name': (fullName ?? current.fullName).trim(),
-      'phone_number': phone ?? current.phone,
-      'purok': purok ?? current.purok,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    };
-
-    final response = await _client
-        .from('profiles')
-        .update(updates)
-        .eq('id', current.id)
-        .select()
-        .maybeSingle();
-    if (response == null) {
-      throw const AuthException('Could not save your profile.');
+    final row = _store.profileById(current.id);
+    if (row == null) {
+      throw const AuthException('Your profile could not be loaded.');
     }
-    _cache = UserProfile.fromMap(response);
+
+    row['full_name'] = (fullName ?? current.fullName).trim();
+    row['phone_number'] = phone ?? current.phone;
+    row['purok'] = purok ?? current.purok;
+    row['updated_at'] = _store.nowIso();
+    await _store.save();
+
+    _cache = UserProfile.fromMap(row);
     return _cache!;
   }
 
   /// Admin-only: change somebody else's role.
   ///
-  /// Assigning a role is also the act of activating the account: a new signup
-  /// starts as `resident` / `pending` (the `handle_new_user` trigger enforces
-  /// that, so public registration cannot grant privileges), and the only way
-  /// it becomes usable is an administrator acting on it here.
+  /// Assigning a role also activates the account, mirroring the old
+  /// `updateUserRole` RPC: a pending signup is made usable by the admin.
   Future<UserProfile> updateUserRole({
     required String userId,
     required UserRole role,
   }) async {
-    final response = await _client
-        .from('profiles')
-        .update({
-          'role': role.value,
-          'account_status': AccountStatus.active.value,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        })
-        .eq('id', userId)
-        .select()
-        .maybeSingle();
-    if (response == null) {
+    final operator = _store.currentProfile;
+    if (operator == null ||
+        UserRole.fromValue(operator['role'] as String?) != UserRole.admin) {
+      throw const AuthException('Only an administrator can change roles.');
+    }
+
+    final row = _store.profileById(userId);
+    if (row == null) {
       throw const AuthException('Could not update that account.');
     }
-    return UserProfile.fromMap(response);
+
+    row['role'] = role.value;
+    row['account_status'] = AccountStatus.active.value;
+    row['updated_at'] = _store.nowIso();
+
+    // Keep the signed-in profile in sync when the admin edits themselves.
+    if (_cache?.id == userId) {
+      _cache = UserProfile.fromMap(row);
+    }
+
+    await _store.save();
+    return UserProfile.fromMap(row);
   }
 
   Future<List<UserProfile>> listUsers() async {
-    final data = await _client
-        .from('profiles')
-        .select('*')
-        .order('full_name', ascending: true);
-    return (data as List)
-        .map((row) => UserProfile.fromMap(Map<String, dynamic>.from(row)))
-        .toList();
+    final rows = [..._store.profiles]
+      ..sort((a, b) => ((a['full_name'] as String?) ?? '')
+          .toLowerCase()
+          .compareTo(((b['full_name'] as String?) ?? '').toLowerCase()));
+    return rows.map(UserProfile.fromMap).toList();
   }
 
-  Future<UserProfile> _loadProfile(String userId) async {
-    var data = await _client
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-    // The trigger normally creates this row; create it defensively if the
-    // account was made before the trigger existed.
-    data ??= await _client.from('profiles').insert({
-      'id': userId,
-      'full_name': 'New resident',
-    }).select().maybeSingle();
-
-    if (data == null) {
+  /// Change the signed-in account's password.
+  ///
+  /// The current password is required even though the session is already open:
+  /// it stops somebody who picked up an unlocked phone from locking the owner
+  /// out of their own local account.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final current = _cache;
+    if (current == null) {
+      throw const AuthException('You are not signed in.');
+    }
+    final row = _store.profileById(current.id);
+    if (row == null) {
       throw const AuthException('Your profile could not be loaded.');
     }
-    _cache = UserProfile.fromMap(data);
-    return _cache!;
+    if (!LocalPassword.verify(
+      currentPassword,
+      row['password_salt'] as String?,
+      row['password_hash'] as String?,
+    )) {
+      throw const AuthException('The current password is not correct.');
+    }
+    if (newPassword.length < 6) {
+      throw const AuthException('Use at least 6 characters.');
+    }
+
+    final salt = LocalPassword.newSalt();
+    row['password_salt'] = salt;
+    row['password_hash'] = LocalPassword.hash(newPassword, salt);
+    row['updated_at'] = _store.nowIso();
+    await _store.save();
   }
 }
 

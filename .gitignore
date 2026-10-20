@@ -33,4 +33,3 @@ Thumbs.db
 
 # Secrets - never commit real keys
 *.env
-supabase/.temp/

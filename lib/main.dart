@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
+import 'data/local/local_store.dart';
 import 'data/repositories/asset_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/borrow_repository.dart';
 import 'data/repositories/notification_repository.dart';
 import 'data/repositories/report_repository.dart';
-import 'data/supabase_service.dart';
-import 'features/setup/setup_required_screen.dart';
+import 'features/splash/splash_screen.dart';
 import 'routes/app_router.dart';
 import 'state/auth_provider.dart';
 import 'state/inventory_provider.dart';
@@ -21,37 +20,20 @@ import 'state/requests_provider.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!AppConfig.isConfigured) {
-    // No Supabase credentials were compiled in. Show the setup instructions in
-    // a real MaterialApp rather than a bare widget: Scaffold needs
-    // MaterialLocalizations, and a bare runApp would render it unstyled.
-    runApp(
-      MaterialApp(
-        title: AppConfig.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        home: const SetupRequiredScreen(),
-      ),
-    );
-    return;
-  }
+  // The only startup work: open (or create) the on-device database. No
+  // network, no credentials, no setup screen.
+  final store = await LocalStore.open();
 
-  await Supabase.initialize(
-    url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseAnonKey,
-  );
-
-  final client = SupabaseService.instance.client;
-  final authRepository = AuthRepository(client);
-  final assetRepository = AssetRepository(client);
-  final borrowRepository = BorrowRepository(client);
-  final notificationRepository = NotificationRepository(client);
-  final reportRepository = ReportRepository(client);
+  final authRepository = AuthRepository(store);
+  final assetRepository = AssetRepository(store);
+  final borrowRepository = BorrowRepository(store);
+  final notificationRepository = NotificationRepository(store);
+  final reportRepository = ReportRepository(store);
 
   runApp(
     MultiProvider(
       providers: [
+        Provider<LocalStore>.value(value: store),
         Provider<AuthRepository>.value(value: authRepository),
         Provider<AssetRepository>.value(value: assetRepository),
         Provider<BorrowRepository>.value(value: borrowRepository),
@@ -84,9 +66,12 @@ class BarangayBorrowApp extends StatefulWidget {
 
 class _BarangayBorrowAppState extends State<BarangayBorrowApp> {
   late final GoRouter _router = buildRouter(context.read<AuthProvider>());
+  bool _splashDone = false;
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
@@ -95,11 +80,14 @@ class _BarangayBorrowAppState extends State<BarangayBorrowApp> {
       themeMode: ThemeMode.system,
       routerConfig: _router,
       builder: (context, child) {
-        final auth = context.watch<AuthProvider>();
-        // Hold the first frame until the session has been restored so the
-        // user never sees the login screen flash on a warm start.
-        if (auth.initialising) {
-          return const SplashScreen();
+        // The splash owns the screen until both its own timer and the session
+        // restore are done, so the login page never flashes on a warm start.
+        if (!_splashDone || auth.initialising) {
+          return SplashScreen(
+            onFinished: () {
+              if (mounted) setState(() => _splashDone = true);
+            },
+          );
         }
         return child ?? const SizedBox.shrink();
       },

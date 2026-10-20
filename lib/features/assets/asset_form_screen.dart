@@ -104,16 +104,16 @@ class _AssetFormScreenState extends State<AssetFormScreen> {
     setState(() => _uploading = true);
     try {
       final bytes = await picked.readAsBytes();
-      final url = await repository.uploadPhoto(bytes, picked.name);
+      final path = await repository.savePhoto(bytes, picked.name);
       if (!mounted) return;
       setState(() {
-        _imageUrls = [url, ..._imageUrls.skip(1)];
+        _imageUrls = [path, ..._imageUrls.skip(1)];
         _uploading = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() => _uploading = false);
-      AppToast.error(context, 'Could not upload the photo.');
+      AppToast.error(context, 'Could not save the photo.');
     }
   }
 

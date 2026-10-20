@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../core/utils/validators.dart';
 import '../../state/auth_provider.dart';
 import '../../core/widgets/common.dart';
-import '../setup/setup_required_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -53,25 +52,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context.go('/home');
       return;
     }
-    if (auth.error != null &&
-        auth.error!.contains('already registered')) {
-      AppToast.error(context, auth.error!);
-      auth.clearError();
-      return;
-    }
     if (auth.error != null) {
       AppToast.error(context, auth.error!);
       auth.clearError();
-      return;
     }
-    // No error and no session: the project requires email confirmation.
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => VerifyEmailScreen(
-          email: _emailController.text.trim(),
-        ),
-      ),
-    );
   }
 
   @override

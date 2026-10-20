@@ -10,10 +10,11 @@ import '../../data/models/dashboard_summary.dart';
 import '../../data/repositories/report_repository.dart';
 import '../../state/auth_provider.dart';
 
-/// Officials' live summary, straight from `dashboard_summary()`.
+/// Officials' live summary.
 ///
-/// The numbers are computed by Postgres from the same rows the rest of the app
-/// reads, so this cannot drift into a hand-maintained spreadsheet.
+/// The numbers are computed on the device from the same rows the rest of the
+/// app reads, so this cannot drift into a hand-maintained spreadsheet. No
+/// internet connection is involved.
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -81,7 +82,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ? const LoadingView()
               : _error != null && _summary == null
                   ? EmptyState(
-                      icon: Icons.cloud_off_rounded,
+                      icon: Icons.error_outline_rounded,
                       title: 'Could not load the report',
                       message: _error,
                       action: FilledButton.icon(
@@ -126,12 +127,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             child: Padding(
                               padding: const EdgeInsets.all(14),
                               child: Text(
-                                'Every count is computed inside Postgres from '
-                                'the current rows, the same ones the dashboard '
-                                'and the approval queue read. Overdue returns '
-                                'are swept into their own status by '
-                                'mark_overdue_bookings(), so they are counted '
-                                'here even before an officer opens the app.',
+                                'Every count is computed on this phone from '
+                                'the current records, the same ones the '
+                                'dashboard and the approval queue read. '
+                                'Overdue returns are moved into their own '
+                                'status when the app refreshes requests, so '
+                                'they are counted here without a server.',
                                 style: theme.textTheme.bodySmall,
                               ),
                             ),

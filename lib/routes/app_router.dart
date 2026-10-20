@@ -4,7 +4,6 @@ import '../features/approvals/approvals_screen.dart';
 import '../features/assets/asset_detail_screen.dart';
 import '../features/assets/asset_form_screen.dart';
 import '../features/assets/assets_screen.dart';
-import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -13,6 +12,7 @@ import '../features/profile/profile_screen.dart';
 import '../features/profile/user_management_screen.dart';
 import '../features/reports/reports_screen.dart';
 import '../features/requests/history_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/requests/my_requests_screen.dart';
 import '../features/requests/request_detail_screen.dart';
 import '../features/requests/request_form_screen.dart';
@@ -28,7 +28,7 @@ GoRouter buildRouter(AuthProvider auth) {
     redirect: (context, state) {
       final signedIn = auth.isSignedIn;
       final location = state.matchedLocation;
-      const publicRoutes = {'/login', '/register', '/forgot-password'};
+      const publicRoutes = {'/login', '/register'};
 
       if (!signedIn) {
         return publicRoutes.contains(location) ? null : '/login';
@@ -48,8 +48,8 @@ GoRouter buildRouter(AuthProvider auth) {
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
-        path: '/forgot-password',
-        builder: (context, state) => const ForgotPasswordScreen(),
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
       ),
       // Full-screen routes outside the bottom-navigation shell: they are
       // opened from the bell, the profile and the official tools, and each
